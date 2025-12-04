@@ -7,16 +7,36 @@ class SignInScreen extends StatefulWidget {
   State<SignInScreen> createState() => _SignInScreenState();
 }
 
-class _SignInScreenState extends State<SignInScreen> {
+class _SignInScreenState extends State<SignInScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
+  late AnimationController _logoFadeController;
+  late Animation<double> _logoFadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _logoFadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
+    _logoFadeAnimation = CurvedAnimation(
+      parent: _logoFadeController,
+      curve: Curves.easeIn,
+    );
+    // Start the fade animation
+    _logoFadeController.forward();
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _logoFadeController.dispose();
     super.dispose();
   }
 
@@ -41,10 +61,13 @@ class _SignInScreenState extends State<SignInScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Logo
-                  Image.asset(
-                    'assets/images/havenlogo.png',
-                    height: 120,
+                  // Logo with fade in animation
+                  FadeTransition(
+                    opacity: _logoFadeAnimation,
+                    child: Image.asset(
+                      'assets/images/havenlogo.png',
+                      height: 120,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -128,7 +151,15 @@ class _SignInScreenState extends State<SignInScreen> {
                   FilledButton(
                     onPressed: _signIn,
                     style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFF57F20).withOpacity(0.6),
                       padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                        side: const BorderSide(
+                          color: Color(0xFFF57F20),
+                          width: 2,
+                        ),
+                      ),
                     ),
                     child: const Text(
                       'Sign In',
