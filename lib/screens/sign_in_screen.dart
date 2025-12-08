@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:haven/screens/otp_verification_screen.dart';
+import 'package:haven/screens/welcome_screen.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -272,6 +273,24 @@ class _SignInScreenState extends State<SignInScreen>
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 24),
+                  // Temporary skip button
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) => const WelcomeScreen(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      'Skip to Welcome Screen',
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
                 ],
               ),

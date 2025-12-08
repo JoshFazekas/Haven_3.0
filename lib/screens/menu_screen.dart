@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:haven/screens/profile_screen.dart';
+import 'package:haven/screens/gameday_screen.dart';
 
 class MenuScreen extends StatelessWidget {
   const MenuScreen({super.key});
@@ -152,7 +153,11 @@ class MenuScreen extends StatelessWidget {
                 imagePath: 'assets/images/sports.png',
                 title: 'Sports',
                 onTap: () {
-                  // TODO: Navigate to sports
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const GamedayScreen(),
+                    ),
+                  );
                 },
               ),
               _buildMenuItem(

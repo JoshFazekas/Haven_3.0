@@ -65,6 +65,33 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // Add Controller button
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 24.0),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () {
+                          // TODO: Navigate to add controller
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFF57F20),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                        child: const Text(
+                          'Add Controller',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
