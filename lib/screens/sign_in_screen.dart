@@ -9,12 +9,20 @@ class SignInScreen extends StatefulWidget {
 }
 
 class _SignInScreenState extends State<SignInScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _phoneController = TextEditingController();
+
+  bool _isSignUpMode = false;
 
   late AnimationController _logoFadeController;
   late Animation<double> _logoFadeAnimation;
+
+  late AnimationController _signUpFieldsController;
+  late Animation<double> _signUpFieldsAnimation;
 
   @override
   void initState() {
@@ -29,19 +37,51 @@ class _SignInScreenState extends State<SignInScreen>
     );
     // Start the fade animation
     _logoFadeController.forward();
+
+    _signUpFieldsController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _signUpFieldsAnimation = CurvedAnimation(
+      parent: _signUpFieldsController,
+      curve: Curves.easeOutCubic,
+    );
   }
 
   @override
   void dispose() {
     _emailController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _phoneController.dispose();
     _logoFadeController.dispose();
+    _signUpFieldsController.dispose();
     super.dispose();
   }
 
-  void _signIn() {
+  void _toggleSignUpMode() {
+    setState(() {
+      _isSignUpMode = !_isSignUpMode;
+    });
+    if (_isSignUpMode) {
+      _signUpFieldsController.forward();
+    } else {
+      _signUpFieldsController.reverse();
+    }
+  }
+
+  void _submit() {
     if (_formKey.currentState!.validate()) {
-      // Send OTP to the email and navigate to verification screen
-      debugPrint('Sending OTP to: ${_emailController.text}');
+      if (_isSignUpMode) {
+        // Sign up logic
+        debugPrint('First Name: ${_firstNameController.text}');
+        debugPrint('Last Name: ${_lastNameController.text}');
+        debugPrint('Email: ${_emailController.text}');
+        debugPrint('Phone: ${_phoneController.text}');
+      } else {
+        // Sign in logic
+        debugPrint('Sending OTP to: ${_emailController.text}');
+      }
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) =>
@@ -73,12 +113,16 @@ class _SignInScreenState extends State<SignInScreen>
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    'Welcome back',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
-                    textAlign: TextAlign.center,
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: Text(
+                      _isSignUpMode ? 'Create your account' : 'Welcome back',
+                      key: ValueKey<bool>(_isSignUpMode),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                   const SizedBox(height: 48),
 
@@ -86,11 +130,13 @@ class _SignInScreenState extends State<SignInScreen>
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Email',
                       hintText: 'Enter your email',
-                      prefixIcon: Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -102,11 +148,83 @@ class _SignInScreenState extends State<SignInScreen>
                       return null;
                     },
                   ),
+
+                  // Animated Sign Up Fields
+                  SizeTransition(
+                    sizeFactor: _signUpFieldsAnimation,
+                    axisAlignment: -1.0,
+                    child: FadeTransition(
+                      opacity: _signUpFieldsAnimation,
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 16),
+                          // First Name Field
+                          TextFormField(
+                            controller: _firstNameController,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: InputDecoration(
+                              labelText: 'First Name',
+                              hintText: 'Enter your first name',
+                              prefixIcon: const Icon(Icons.person_outlined),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            validator: _isSignUpMode
+                                ? (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Please enter your first name';
+                                    }
+                                    return null;
+                                  }
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          // Last Name Field
+                          TextFormField(
+                            controller: _lastNameController,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: InputDecoration(
+                              labelText: 'Last Name',
+                              hintText: 'Enter your last name',
+                              prefixIcon: const Icon(Icons.person_outlined),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            validator: _isSignUpMode
+                                ? (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Please enter your last name';
+                                    }
+                                    return null;
+                                  }
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          // Phone Number Field (Optional)
+                          TextFormField(
+                            controller: _phoneController,
+                            keyboardType: TextInputType.phone,
+                            decoration: InputDecoration(
+                              labelText: 'Phone Number (Optional)',
+                              hintText: 'Enter your phone number',
+                              prefixIcon: const Icon(Icons.phone_outlined),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
                   const SizedBox(height: 24),
 
-                  // Sign In Button
+                  // Sign In / Sign Up Button
                   FilledButton(
-                    onPressed: _signIn,
+                    onPressed: _submit,
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFFF57F20).withOpacity(0.6),
                       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -118,26 +236,40 @@ class _SignInScreenState extends State<SignInScreen>
                         ),
                       ),
                     ),
-                    child: const Text(
-                      'Sign In',
-                      style: TextStyle(fontSize: 16),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Text(
+                        _isSignUpMode ? 'Sign Up' : 'Sign In',
+                        key: ValueKey<bool>(_isSignUpMode),
+                        style: const TextStyle(fontSize: 16),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),
 
-                  // Sign Up Link
+                  // Toggle Sign Up / Sign In Link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        "Don't have an account? ",
-                        style: TextStyle(color: Colors.grey[600]),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: Text(
+                          _isSignUpMode
+                              ? 'Already have an account? '
+                              : "Don't have an account? ",
+                          key: ValueKey<bool>(_isSignUpMode),
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
                       ),
                       TextButton(
-                        onPressed: () {
-                          // TODO: Navigate to sign up screen
-                        },
-                        child: const Text('Sign Up'),
+                        onPressed: _toggleSignUpMode,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: Text(
+                            _isSignUpMode ? 'Sign In' : 'Sign Up',
+                            key: ValueKey<bool>(_isSignUpMode),
+                          ),
+                        ),
                       ),
                     ],
                   ),

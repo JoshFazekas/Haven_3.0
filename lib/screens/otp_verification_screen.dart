@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:haven/screens/welcome_screen.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final String email;
@@ -20,11 +21,17 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   void _verifyOtp() {
     if (_otpController.text.length == 4) {
-      // TODO: Implement OTP verification logic
-      debugPrint('Verifying OTP: ${_otpController.text}');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('OTP verified successfully!')),
-      );
+      if (_otpController.text == '1234') {
+        // Correct code - navigate to welcome screen
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid code. Please try again.')),
+        );
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a valid 4-digit code')),
@@ -61,7 +68,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
               // Title
               Text(
-                'OTP Code Sent',
+                'Login code sent',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -74,7 +81,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 widget.email,
                 style: Theme.of(
                   context,
-                ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
+                ).textTheme.bodyLarge?.copyWith(color: const Color(0xFFF57F20)),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 48),
@@ -90,14 +97,26 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   letterSpacing: 16,
                   fontWeight: FontWeight.bold,
                 ),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: '----',
-                  hintStyle: TextStyle(
+                  hintStyle: const TextStyle(
                     fontSize: 32,
                     letterSpacing: 16,
                     fontWeight: FontWeight.bold,
                   ),
-                  border: OutlineInputBorder(),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFF57F20),
+                      width: 2,
+                    ),
+                  ),
                   counterText: '',
                   contentPadding: EdgeInsets.symmetric(vertical: 20),
                 ),
