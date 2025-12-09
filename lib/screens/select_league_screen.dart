@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'select_team_screen.dart';
 
 class SelectLeagueScreen extends StatelessWidget {
-  const SelectLeagueScreen({super.key});
+  final List<Map<String, String>> existingTeams;
+
+  const SelectLeagueScreen({super.key, this.existingTeams = const []});
 
   @override
   Widget build(BuildContext context) {
@@ -25,26 +27,31 @@ class SelectLeagueScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Image.asset(
-          'assets/images/gamedaylogo.png',
-          height: 32,
-        ),
+        title: Image.asset('assets/images/gamedaylogo.png', height: 32),
         centerTitle: true,
       ),
       body: SafeArea(
         bottom: false,
         child: ListView.builder(
-          padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 24.0, bottom: 8.0),
+          padding: const EdgeInsets.only(
+            left: 24.0,
+            right: 24.0,
+            top: 24.0,
+            bottom: 8.0,
+          ),
           itemCount: leagues.length,
           itemBuilder: (context, index) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 16.0),
-                child: GestureDetector(
+              child: GestureDetector(
                 onTap: () {
                   if (leagues[index] == 'nfl.png') {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (context) => const SelectTeamScreen(league: 'NFL'),
+                        builder: (context) => SelectTeamScreen(
+                          league: 'NFL',
+                          existingTeams: existingTeams,
+                        ),
                       ),
                     );
                   } else {

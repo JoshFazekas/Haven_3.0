@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+import 'team_selection_animation_screen.dart';
 
 class SelectTeamScreen extends StatefulWidget {
   final String league;
+  final List<Map<String, String>> existingTeams;
 
-  const SelectTeamScreen({super.key, required this.league});
+  const SelectTeamScreen({
+    super.key,
+    required this.league,
+    this.existingTeams = const [],
+  });
 
   @override
   State<SelectTeamScreen> createState() => _SelectTeamScreenState();
@@ -13,7 +19,7 @@ class _SelectTeamScreenState extends State<SelectTeamScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  final List<Map<String, String>>_nflTeams = [
+  final List<Map<String, String>> _nflTeams = [
     {'name': 'Bears', 'image': 'bears.png'},
     {'name': 'Bengals', 'image': 'bengals.png'},
     {'name': 'Bills', 'image': 'bills.png'},
@@ -30,8 +36,10 @@ class _SelectTeamScreenState extends State<SelectTeamScreen> {
       return _nflTeams;
     }
     return _nflTeams
-        .where((team) =>
-            team['name']!.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .where(
+          (team) =>
+              team['name']!.toLowerCase().contains(_searchQuery.toLowerCase()),
+        )
         .toList();
   }
 
@@ -52,10 +60,7 @@ class _SelectTeamScreenState extends State<SelectTeamScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Image.asset(
-          'assets/images/gamedaylogo.png',
-          height: 32,
-        ),
+        title: Image.asset('assets/images/gamedaylogo.png', height: 32),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -93,7 +98,11 @@ class _SelectTeamScreenState extends State<SelectTeamScreen> {
             // Teams list
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.only(left: 12.0, right: 12.0, bottom: 8.0),
+                padding: const EdgeInsets.only(
+                  left: 12.0,
+                  right: 12.0,
+                  bottom: 8.0,
+                ),
                 itemCount: _filteredTeams.length,
                 itemBuilder: (context, index) {
                   final team = _filteredTeams[index];
@@ -101,8 +110,16 @@ class _SelectTeamScreenState extends State<SelectTeamScreen> {
                     padding: const EdgeInsets.only(bottom: 8.0),
                     child: GestureDetector(
                       onTap: () {
-                        // TODO: Handle team selection
-                        debugPrint('Selected team: ${team['name']}');
+                        // Add team to selected teams and navigate to animation
+                        final updatedTeams = [...widget.existingTeams, team];
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (context) => TeamSelectionAnimationScreen(
+                              selectedTeam: team,
+                              allSelectedTeams: updatedTeams,
+                            ),
+                          ),
+                        );
                       },
                       child: Image.asset(
                         'assets/images/${team['image']}',
