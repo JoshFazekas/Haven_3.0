@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:haven/screens/otp_verification_screen.dart';
+import 'package:haven/screens/welcome_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   final String? email;
@@ -43,12 +43,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
       debugPrint('Email: ${_emailController.text}');
       debugPrint('Phone: ${_phoneController.text}');
 
-      // Navigate to OTP verification
-      Navigator.of(context).push(
+      // Navigate to Welcome screen (TODO: implement proper sign up API)
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
-          builder: (context) =>
-              OtpVerificationScreen(email: _emailController.text),
+          builder: (context) => const WelcomeScreen(),
         ),
+        (route) => false,
       );
     }
   }

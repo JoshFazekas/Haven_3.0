@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:haven/screens/profile_screen.dart';
 import 'package:haven/screens/gameday_screen.dart';
+import 'package:haven/screens/add_device_screen.dart';
 
 class MenuScreen extends StatelessWidget {
   const MenuScreen({super.key});
@@ -139,7 +140,11 @@ class MenuScreen extends StatelessWidget {
                 imagePath: 'assets/images/addcontroller.png',
                 title: 'Add Controller',
                 onTap: () {
-                  // TODO: Navigate to add controller
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const AddDeviceScreen(),
+                    ),
+                  );
                 },
               ),
               _buildMenuItem(

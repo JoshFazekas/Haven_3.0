@@ -1,33 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:haven/screens/otp_verification_screen.dart';
+import 'package:haven/core/services/auth_service.dart';
+import 'package:haven/core/services/auth_state.dart';
 import 'package:haven/screens/welcome_screen.dart';
 
 class SignInScreen extends StatefulWidget {
-  const SignInScreen({super.key});
+  final String? initialEmail;
+
+  const SignInScreen({super.key, this.initialEmail});
 
   @override
   State<SignInScreen> createState() => _SignInScreenState();
 }
 
 class _SignInScreenState extends State<SignInScreen>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _firstNameController = TextEditingController();
-  final _lastNameController = TextEditingController();
-  final _phoneController = TextEditingController();
-
-  bool _isSignUpMode = false;
+  final _emailController = TextEditingController(text: 'joshua.fazekas3@gmail.com');
+  final _passwordController = TextEditingController(text: 'miHaven1');
+  final _authService = AuthService();
+  bool _obscurePassword = true;
+  bool _isLoading = false;
 
   late AnimationController _logoFadeController;
   late Animation<double> _logoFadeAnimation;
 
-  late AnimationController _signUpFieldsController;
-  late Animation<double> _signUpFieldsAnimation;
-
   @override
   void initState() {
     super.initState();
+    _loadLastEmail();
+
     _logoFadeController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 1),
@@ -36,59 +37,99 @@ class _SignInScreenState extends State<SignInScreen>
       parent: _logoFadeController,
       curve: Curves.easeIn,
     );
-    // Start the fade animation
     _logoFadeController.forward();
+  }
 
-    _signUpFieldsController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _signUpFieldsAnimation = CurvedAnimation(
-      parent: _signUpFieldsController,
-      curve: Curves.easeOutCubic,
-    );
+  Future<void> _loadLastEmail() async {
+    if (widget.initialEmail != null && widget.initialEmail!.isNotEmpty) {
+      _emailController.text = widget.initialEmail!;
+    } else {
+      final lastEmail = await AuthState().getLastEmail();
+      if (lastEmail != null && mounted) {
+        setState(() {
+          _emailController.text = lastEmail;
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
     _emailController.dispose();
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _phoneController.dispose();
+    _passwordController.dispose();
     _logoFadeController.dispose();
-    _signUpFieldsController.dispose();
     super.dispose();
   }
 
-  void _toggleSignUpMode() {
-    setState(() {
-      _isSignUpMode = !_isSignUpMode;
-    });
-    if (_isSignUpMode) {
-      _signUpFieldsController.forward();
-    } else {
-      _signUpFieldsController.reverse();
-    }
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red, size: 28),
+            SizedBox(width: 12),
+            Text(
+              'Sign In Failed',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(message, style: const TextStyle(fontSize: 16)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
-  void _submit() {
+  Future<void> _signIn() async {
     if (_formKey.currentState!.validate()) {
-      if (_isSignUpMode) {
-        // Sign up logic
-        debugPrint('First Name: ${_firstNameController.text}');
-        debugPrint('Last Name: ${_lastNameController.text}');
-        debugPrint('Email: ${_emailController.text}');
-        debugPrint('Phone: ${_phoneController.text}');
-      } else {
-        // Sign in logic
-        debugPrint('Sending OTP to: ${_emailController.text}');
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        final result = await _authService.authenticate(
+          _emailController.text.trim(),
+          _passwordController.text,
+        );
+
+        final token = result['token'] as String;
+        final refreshToken = result['refreshToken'] as String;
+        final userId = result['id'] as int;
+
+        await AuthState().login(
+          token: token,
+          refreshToken: refreshToken,
+          userId: userId,
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+            (route) => false,
+          );
+        }
+      } on AuthException catch (e) {
+        if (mounted) {
+          _showErrorDialog(e.message);
+        }
+      } catch (e) {
+        if (mounted) {
+          _showErrorDialog('Please enter correct email/password.');
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) =>
-              OtpVerificationScreen(email: _emailController.text),
-        ),
-      );
     }
   }
 
@@ -105,7 +146,6 @@ class _SignInScreenState extends State<SignInScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Logo with fade in animation
                   FadeTransition(
                     opacity: _logoFadeAnimation,
                     child: Image.asset(
@@ -114,23 +154,30 @@ class _SignInScreenState extends State<SignInScreen>
                     ),
                   ),
                   const SizedBox(height: 8),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: Text(
-                      _isSignUpMode ? 'Create your account' : 'Welcome back',
-                      key: ValueKey<bool>(_isSignUpMode),
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
-                      textAlign: TextAlign.center,
-                    ),
+                  Text(
+                    'Welcome back',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 48),
-
-                  // Email Field
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
+                    textCapitalization: TextCapitalization.none,
+                    autocorrect: false,
+                    onChanged: (value) {
+                      final lowercased = value.toLowerCase();
+                      if (value != lowercased) {
+                        _emailController.value = TextEditingValue(
+                          text: lowercased,
+                          selection: TextSelection.collapsed(
+                            offset: lowercased.length,
+                          ),
+                        );
+                      }
+                    },
                     decoration: InputDecoration(
                       labelText: 'Email',
                       hintText: 'Enter your email',
@@ -143,89 +190,55 @@ class _SignInScreenState extends State<SignInScreen>
                       if (value == null || value.isEmpty) {
                         return 'Please enter your email';
                       }
-                      if (!value.contains('@')) {
+                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                          .hasMatch(value)) {
                         return 'Please enter a valid email';
                       }
                       return null;
                     },
                   ),
-
-                  // Animated Sign Up Fields
-                  SizeTransition(
-                    sizeFactor: _signUpFieldsAnimation,
-                    axisAlignment: -1.0,
-                    child: FadeTransition(
-                      opacity: _signUpFieldsAnimation,
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 16),
-                          // First Name Field
-                          TextFormField(
-                            controller: _firstNameController,
-                            textCapitalization: TextCapitalization.words,
-                            decoration: InputDecoration(
-                              labelText: 'First Name',
-                              hintText: 'Enter your first name',
-                              prefixIcon: const Icon(Icons.person_outlined),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            validator: _isSignUpMode
-                                ? (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please enter your first name';
-                                    }
-                                    return null;
-                                  }
-                                : null,
-                          ),
-                          const SizedBox(height: 16),
-                          // Last Name Field
-                          TextFormField(
-                            controller: _lastNameController,
-                            textCapitalization: TextCapitalization.words,
-                            decoration: InputDecoration(
-                              labelText: 'Last Name',
-                              hintText: 'Enter your last name',
-                              prefixIcon: const Icon(Icons.person_outlined),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            validator: _isSignUpMode
-                                ? (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please enter your last name';
-                                    }
-                                    return null;
-                                  }
-                                : null,
-                          ),
-                          const SizedBox(height: 16),
-                          // Phone Number Field (Optional)
-                          TextFormField(
-                            controller: _phoneController,
-                            keyboardType: TextInputType.phone,
-                            decoration: InputDecoration(
-                              labelText: 'Phone Number (Optional)',
-                              hintText: 'Enter your phone number',
-                              prefixIcon: const Icon(Icons.phone_outlined),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ],
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      hintText: 'Enter your password',
+                      prefixIcon: const Icon(Icons.lock_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
                       ),
                     ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your password';
+                      }
+                      return null;
+                    },
                   ),
-
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {},
+                      child: const Text('Forgot Password?'),
+                    ),
+                  ),
                   const SizedBox(height: 24),
-
-                  // Sign In / Sign Up Button
                   FilledButton(
-                    onPressed: _submit,
+                    onPressed: _isLoading ? null : _signIn,
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFFF57F20).withOpacity(0.6),
                       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -237,60 +250,33 @@ class _SignInScreenState extends State<SignInScreen>
                         ),
                       ),
                     ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: Text(
-                        _isSignUpMode ? 'Sign Up' : 'Sign In',
-                        key: ValueKey<bool>(_isSignUpMode),
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : const Text(
+                            'Sign In',
+                            style: TextStyle(fontSize: 16),
+                          ),
                   ),
                   const SizedBox(height: 24),
-
-                  // Toggle Sign Up / Sign In Link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: Text(
-                          _isSignUpMode
-                              ? 'Already have an account? '
-                              : "Don't have an account? ",
-                          key: ValueKey<bool>(_isSignUpMode),
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
+                      Text(
+                        "Don't have an account? ",
+                        style: TextStyle(color: Colors.grey[600]),
                       ),
                       TextButton(
-                        onPressed: _toggleSignUpMode,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 200),
-                          child: Text(
-                            _isSignUpMode ? 'Sign In' : 'Sign Up',
-                            key: ValueKey<bool>(_isSignUpMode),
-                          ),
-                        ),
+                        onPressed: () {},
+                        child: const Text('Sign Up'),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 24),
-                  // Temporary skip button
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(
-                          builder: (context) => const WelcomeScreen(),
-                        ),
-                      );
-                    },
-                    child: Text(
-                      'Skip to Welcome Screen',
-                      style: TextStyle(
-                        color: Colors.grey[500],
-                        fontSize: 14,
-                      ),
-                    ),
                   ),
                 ],
               ),
@@ -301,3 +287,4 @@ class _SignInScreenState extends State<SignInScreen>
     );
   }
 }
+

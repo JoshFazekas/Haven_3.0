@@ -225,7 +225,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateM
                             ),
                             SizedBox(height: 8),
                             Text(
-                              "Add your first device to get started",
+                              "Add your first controller to get started",
                               style: TextStyle(
                                 fontFamily: 'SpaceMono',
                                 fontSize: 16,

@@ -39,6 +39,19 @@ dependencies:
   lottie: ^3.3.1
   image_picker: ^1.2.1
   shared_preferences: ^2.2.2
+  
+  # HTTP requests
+  http: ^1.2.0
+  
+  # Secure storage for credentials
+  flutter_secure_storage: ^9.2.2
+  
+  # Network info for WiFi detection
+  network_info_plus: ^6.0.1
+  
+  # Permission handling
+  permission_handler: ^11.3.1
+  wifi_iot: ^0.3.19+2
 
 dev_dependencies:
   flutter_test:
