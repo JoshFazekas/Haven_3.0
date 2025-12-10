@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+import 'package:haven/core/services/team_storage_service.dart';
 import 'my_teams_screen.dart';
 
 class TeamSelectionAnimationScreen extends StatefulWidget {
@@ -22,17 +23,47 @@ class _TeamSelectionAnimationScreenState
     with TickerProviderStateMixin {
   late AnimationController _animationController;
   bool _hasNavigated = false;
+  bool _teamsSaved = false;
+  bool _animationCompleted = false;
 
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(vsync: this);
     _animationController.addStatusListener((status) {
-      if (status == AnimationStatus.completed && !_hasNavigated) {
-        _hasNavigated = true;
-        _onAnimationComplete();
+      if (status == AnimationStatus.completed) {
+        _animationCompleted = true;
+        _tryNavigate();
       }
     });
+    
+    // Save teams immediately when this screen loads
+    _saveTeams();
+    
+    // Fallback timeout in case animation fails to load
+    Future.delayed(const Duration(seconds: 3), () {
+      if (!_hasNavigated && mounted) {
+        _animationCompleted = true;
+        _tryNavigate();
+      }
+    });
+  }
+
+  Future<void> _saveTeams() async {
+    debugPrint('AnimationScreen: Saving teams...');
+    await TeamStorageService.saveTeams(widget.allSelectedTeams);
+    debugPrint('AnimationScreen: Teams saved!');
+    _teamsSaved = true;
+    _tryNavigate();
+  }
+
+  void _tryNavigate() {
+    debugPrint('AnimationScreen: _tryNavigate called - saved: $_teamsSaved, animCompleted: $_animationCompleted, hasNavigated: $_hasNavigated');
+    if (_teamsSaved && _animationCompleted && !_hasNavigated && mounted) {
+      _hasNavigated = true;
+      debugPrint('AnimationScreen: Navigating to GamedayScreen...');
+      _onAnimationComplete();
+    }
   }
 
   @override
@@ -42,12 +73,15 @@ class _TeamSelectionAnimationScreenState
   }
 
   void _onAnimationComplete() {
-    // Navigate to My Teams screen after animation completes
-    Navigator.of(context).pushReplacement(
+    // Navigate directly to MyTeamsScreen with the teams we just saved
+    // Pop all intermediate screens (select_team, select_league, gameday) and push MyTeamsScreen
+    Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (context) =>
-            MyTeamsScreen(selectedTeams: widget.allSelectedTeams),
+        builder: (context) => MyTeamsScreen(
+          selectedTeams: widget.allSelectedTeams,
+        ),
       ),
+      (route) => route.isFirst, // Keep only the menu screen
     );
   }
 
@@ -66,6 +100,20 @@ class _TeamSelectionAnimationScreenState
                 _animationController
                   ..duration = composition.duration
                   ..forward();
+              },
+              errorBuilder: (context, error, stackTrace) {
+                // If animation fails to load, navigate after a short delay
+                Future.delayed(const Duration(milliseconds: 500), () {
+                  if (!_hasNavigated && mounted) {
+                    _hasNavigated = true;
+                    _onAnimationComplete();
+                  }
+                });
+                return const Icon(
+                  Icons.sports_football,
+                  color: Color(0xFFF57F20),
+                  size: 120,
+                );
               },
               width: 120,
               height: 120,

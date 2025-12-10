@@ -1,11 +1,65 @@
 import 'package:flutter/material.dart';
+import 'package:haven/core/services/team_storage_service.dart';
 import 'select_league_screen.dart';
+import 'my_teams_screen.dart';
 
-class GamedayScreen extends StatelessWidget {
+class GamedayScreen extends StatefulWidget {
   const GamedayScreen({super.key});
 
   @override
+  State<GamedayScreen> createState() => _GamedayScreenState();
+}
+
+class _GamedayScreenState extends State<GamedayScreen> {
+  bool _isLoading = true;
+  bool _hasTeams = false;
+  List<Map<String, String>> _savedTeams = [];
+  List<Map<String, String>> _savedDisabledTeams = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedTeams();
+  }
+
+  Future<void> _loadSavedTeams() async {
+    debugPrint('GamedayScreen: Loading saved teams...');
+    final teams = await TeamStorageService.loadTeams();
+    final disabledTeams = await TeamStorageService.loadDisabledTeams();
+    
+    debugPrint('GamedayScreen: Loaded ${teams.length} teams and ${disabledTeams.length} disabled teams');
+    debugPrint('GamedayScreen: Teams = $teams');
+    
+    setState(() {
+      _savedTeams = teams;
+      _savedDisabledTeams = disabledTeams;
+      _hasTeams = teams.isNotEmpty || disabledTeams.isNotEmpty;
+      _isLoading = false;
+    });
+    
+    debugPrint('GamedayScreen: _hasTeams = $_hasTeams');
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF242424),
+        body: const Center(
+          child: CircularProgressIndicator(color: Color(0xFFF57F20)),
+        ),
+      );
+    }
+
+    // If user has saved teams, show MyTeamsScreen directly
+    if (_hasTeams) {
+      return MyTeamsScreen(
+        selectedTeams: _savedTeams,
+        disabledTeams: _savedDisabledTeams,
+      );
+    }
+
+    // Otherwise show the initial "Add Team" screen
     return Scaffold(
       backgroundColor: const Color(0xFF242424),
       appBar: AppBar(
@@ -28,12 +82,37 @@ class GamedayScreen extends StatelessWidget {
           child: Column(
             children: [
               const Spacer(),
-              // Haven Game Day logo
-              Transform.scale(
-                scale: 0.85,
-                child: Image.asset(
-                  'assets/images/havengameday1.png',
-                ),
+              // Haven Game Day text
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Text(
+                    'Haven',
+                    style: TextStyle(
+                      fontFamily: 'ZCOOLKuaiLe',
+                      fontSize: 32,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Game',
+                    style: TextStyle(
+                      fontFamily: 'ZCOOLKuaiLe',
+                      fontSize: 32,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Day',
+                    style: TextStyle(
+                      fontFamily: 'ZCOOLKuaiLe',
+                      fontSize: 32,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 32),
               // Bullet points

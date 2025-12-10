@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:haven/core/services/team_storage_service.dart';
 import 'select_league_screen.dart';
 
 class MyTeamsScreen extends StatefulWidget {
   final List<Map<String, String>> selectedTeams;
+  final List<Map<String, String>> disabledTeams;
 
-  const MyTeamsScreen({super.key, required this.selectedTeams});
+  const MyTeamsScreen({
+    super.key,
+    required this.selectedTeams,
+    this.disabledTeams = const [],
+  });
 
   @override
   State<MyTeamsScreen> createState() => _MyTeamsScreenState();
@@ -18,6 +24,23 @@ class _MyTeamsScreenState extends State<MyTeamsScreen> {
   void initState() {
     super.initState();
     _teams = List.from(widget.selectedTeams);
+    _disabledTeams = List.from(widget.disabledTeams);
+    // Save teams when screen is initialized with new teams
+    _saveTeamsOnInit();
+  }
+
+  void _saveTeamsOnInit() {
+    // Only save if there are teams (to avoid clearing on empty init)
+    if (_teams.isNotEmpty || _disabledTeams.isNotEmpty) {
+      debugPrint('MyTeamsScreen: Saving teams on init - ${_teams.length} active, ${_disabledTeams.length} disabled');
+      TeamStorageService.saveTeams(_teams);
+      TeamStorageService.saveDisabledTeams(_disabledTeams);
+    }
+  }
+
+  void _saveTeams() {
+    TeamStorageService.saveTeams(_teams);
+    TeamStorageService.saveDisabledTeams(_disabledTeams);
   }
 
   void _onReorder(int oldIndex, int newIndex) {
@@ -28,6 +51,7 @@ class _MyTeamsScreenState extends State<MyTeamsScreen> {
       final item = _teams.removeAt(oldIndex);
       _teams.insert(newIndex, item);
     });
+    _saveTeams();
   }
 
   void _onReorderDisabled(int oldIndex, int newIndex) {
@@ -38,6 +62,7 @@ class _MyTeamsScreenState extends State<MyTeamsScreen> {
       final item = _disabledTeams.removeAt(oldIndex);
       _disabledTeams.insert(newIndex, item);
     });
+    _saveTeams();
   }
 
   void _disableTeam(Map<String, String> team) {
@@ -45,6 +70,7 @@ class _MyTeamsScreenState extends State<MyTeamsScreen> {
       _teams.remove(team);
       _disabledTeams.add(team);
     });
+    _saveTeams();
   }
 
   void _enableTeam(Map<String, String> team) {
@@ -52,6 +78,7 @@ class _MyTeamsScreenState extends State<MyTeamsScreen> {
       _disabledTeams.remove(team);
       _teams.add(team);
     });
+    _saveTeams();
   }
 
   void _showTeamOptions(Map<String, String> team, bool isDisabled) {
@@ -124,41 +151,51 @@ class _MyTeamsScreenState extends State<MyTeamsScreen> {
         ),
         child: Row(
           children: [
-            const SizedBox(width: 8),
-            const Icon(Icons.drag_handle, color: Colors.grey, size: 24),
-            const SizedBox(width: 8),
-            Opacity(
-              opacity: isDisabled ? 0.5 : 1.0,
-              child: Image.asset(
-                teamLogo,
-                width: 36,
-                height: 36,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  return const Icon(
-                    Icons.error_outline,
-                    color: Colors.grey,
-                    size: 36,
-                  );
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
+            // Large draggable area on the left
             Expanded(
-              child: Text(
-                fullTeamName,
-                style: TextStyle(
-                  color: isDisabled ? Colors.grey : Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 8),
+                  const Icon(Icons.drag_handle, color: Colors.grey, size: 24),
+                  const SizedBox(width: 8),
+                  Opacity(
+                    opacity: isDisabled ? 0.5 : 1.0,
+                    child: Image.asset(
+                      teamLogo,
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(
+                          Icons.error_outline,
+                          color: Colors.grey,
+                          size: 36,
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      fullTeamName,
+                      style: TextStyle(
+                        color: isDisabled ? Colors.grey : Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
+            // 3-dot menu - not part of drag area
             GestureDetector(
               onTap: () => _showTeamOptions(team, isDisabled),
-              child: const Icon(Icons.more_vert, color: Colors.grey, size: 36),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8.0),
+                child: Icon(Icons.more_vert, color: Colors.grey, size: 36),
+              ),
             ),
-            const SizedBox(width: 8),
           ],
         ),
       ),
@@ -177,11 +214,11 @@ class _MyTeamsScreenState extends State<MyTeamsScreen> {
       case 'browns':
         return 'assets/images/brownslogo.png';
       case 'cardinals':
-        return 'assets/images/cardinalslogo.png';
+        return 'assets/images/cardinallogo.png';
       case 'cowboys':
         return 'assets/images/cowboyslogo.png';
       case 'falcons':
-        return 'assets/images/falconslogo.png';
+        return 'assets/images/falconlogo.png';
       case 'panthers':
         return 'assets/images/pantherslogo.png';
       case 'ravens':
@@ -327,7 +364,6 @@ class _MyTeamsScreenState extends State<MyTeamsScreen> {
           // Active Teams list
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -356,7 +392,7 @@ class _MyTeamsScreenState extends State<MyTeamsScreen> {
                       itemBuilder: (context, index) {
                         final team = _teams[index];
                         return Padding(
-                          key: ValueKey('active_${team['name']}'),
+                          key: ValueKey('active_${index}_${team['name']}'),
                           padding: const EdgeInsets.only(bottom: 12.0),
                           child: _buildTeamContainer(team['name'] ?? '', team),
                         );
@@ -391,50 +427,55 @@ class _MyTeamsScreenState extends State<MyTeamsScreen> {
                       itemBuilder: (context, index) {
                         final team = _disabledTeams[index];
                         return Padding(
-                          key: ValueKey('disabled_${team['name']}'),
+                          key: ValueKey('disabled_${index}_${team['name']}'),
                           padding: const EdgeInsets.only(bottom: 12.0),
                           child: _buildTeamContainer(team['name'] ?? '', team, isDisabled: true),
                         );
                       },
                     ),
                   ],
-                  // Add Another Team button inside scroll view
-                  if (_totalTeams < _maxTeams)
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    SelectLeagueScreen(existingTeams: [..._teams, ..._disabledTeams]),
-                              ),
-                            );
-                          },
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFFF57F20),
-                            padding: const EdgeInsets.symmetric(vertical: 18),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                          ),
-                          child: const Text(
-                            'Add Another Team',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
           ),
+          // Add Another Team button - fixed at bottom
+          if (_totalTeams < _maxTeams)
+            Padding(
+              padding: EdgeInsets.only(
+                left: 16.0,
+                right: 16.0,
+                top: 16.0,
+                bottom: MediaQuery.of(context).padding.bottom + 16.0,
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            SelectLeagueScreen(existingTeams: [..._teams, ..._disabledTeams]),
+                      ),
+                    );
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFF57F20),
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  child: const Text(
+                    'Add Another Team',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
