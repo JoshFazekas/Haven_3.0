@@ -1,7 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:haven/screens/demo_home_screen.dart';
+import 'package:flutter/services.dart';
 import 'package:haven/widgets/location_header.dart';
+import 'package:haven/widgets/nearby_device_popup.dart';
+import 'package:haven/core/services/bluetooth_scan_service.dart';
 import 'package:lottie/lottie.dart';
+
+// Import threshold constant
+const int kNearbyRssiThreshold = -50;
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -20,6 +26,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateM
   static const double _maxPullDistance = 100;
   static const double _triggerDistance = 70;
 
+  // Bluetooth scanning state
+  final BluetoothScanService _bluetoothService = BluetoothScanService();
+  StreamSubscription<NearbyHavenDevice>? _nearbyDeviceSubscription;
+  bool _showNearbyDevicePopup = false;
+  NearbyHavenDevice? _nearbyDevice;
+
   @override
   void initState() {
     super.initState();
@@ -32,6 +44,44 @@ class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateM
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
+
+    // Start Bluetooth scanning and listen for nearby devices
+    _startBluetoothScanning();
+  }
+
+  Future<void> _startBluetoothScanning() async {
+    // Listen for nearby device notifications
+    _nearbyDeviceSubscription = _bluetoothService.nearbyDeviceStream.listen((device) {
+      if (mounted && !_showNearbyDevicePopup) {
+        // Trigger haptic feedback when device is detected
+        HapticFeedback.heavyImpact();
+        
+        setState(() {
+          _nearbyDevice = device;
+          _showNearbyDevicePopup = true;
+        });
+      }
+    });
+
+    // Start scanning
+    await _bluetoothService.startScanning();
+  }
+
+  void _dismissNearbyDevicePopup() {
+    setState(() {
+      _showNearbyDevicePopup = false;
+      _nearbyDevice = null;
+    });
+    // Reset the flag after a delay so we can detect new devices
+    Future.delayed(const Duration(seconds: 10), () {
+      _bluetoothService.resetPopupFlag();
+    });
+  }
+
+  void _onConnectToDevice() {
+    // TODO: Navigate to add device flow with the detected device
+    debugPrint('Connect to device: ${_nearbyDevice?.deviceName}');
+    _dismissNearbyDevicePopup();
   }
 
   @override
@@ -39,6 +89,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateM
     _lottieController?.dispose();
     _pullController?.dispose();
     _fadeController?.dispose();
+    _nearbyDeviceSubscription?.cancel();
+    _bluetoothService.stopScanning();
     super.dispose();
   }
 
@@ -239,46 +291,20 @@ class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateM
                       ),
                     ),
                   ),
-                  // View Demo button
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 24.0),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const DemoHomeScreen(),
-                            ),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: const Color(0xFFF57F20).withOpacity(0.2),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: const BorderSide(
-                            color: Color(0xFFF57F20),
-                            width: 2,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                        ),
-                        child: const Text(
-                          'View Demo',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFFF57F20),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
           ),
+
+          // Nearby device popup overlay
+          if (_showNearbyDevicePopup && _nearbyDevice != null)
+            NearbyDevicePopup(
+              device: _nearbyDevice!,
+              onDismiss: _dismissNearbyDevicePopup,
+              onConnect: _onConnectToDevice,
+            ),
+          
+
         ],
       ),
     );
