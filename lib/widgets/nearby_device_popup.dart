@@ -649,7 +649,7 @@ class _NearbyDevicePopupState extends State<NearbyDevicePopup>
             child: TextField(
               controller: _passwordController,
               obscureText: _obscurePassword,
-              autofocus: true,
+              autofocus: false,
               cursorColor: const Color(0xFF22C55E),
               textAlignVertical: TextAlignVertical.center,
               style: const TextStyle(color: Colors.white, fontSize: 16),
