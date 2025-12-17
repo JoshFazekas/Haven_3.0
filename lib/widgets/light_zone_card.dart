@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:lottie/lottie.dart';
 import '../screens/colors_tab_view.dart';
 
 /// A card displaying a single light/zone with channel name and light name
@@ -26,45 +25,26 @@ class LightZoneCard extends StatefulWidget {
   State<LightZoneCard> createState() => _LightZoneCardState();
 }
 
-class _LightZoneCardState extends State<LightZoneCard>
-    with SingleTickerProviderStateMixin {
-  AnimationController? _toggleController;
+class _LightZoneCardState extends State<LightZoneCard> {
   bool _isOn = false;
   Color _selectedColor = Colors.white; // Store the selected color
 
   @override
   void initState() {
     super.initState();
-    _toggleController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300), // Default duration
-    );
   }
 
   @override
   void dispose() {
-    _toggleController?.dispose();
     super.dispose();
   }
 
   void _onToggleTap() {
     HapticFeedback.mediumImpact();
-    
-    if (_isOn) {
-      // Turning OFF - reverse the animation
-      _toggleController?.reverse().then((_) {
-        setState(() {
-          _isOn = false;
-        });
-      });
-    } else {
-      // Turning ON - play forward
-      setState(() {
-        _isOn = true;
-      });
-    }
-    
-    debugPrint('Toggle tapped for ${widget.lightName}: ${!_isOn ? "ON" : "OFF"}');
+    setState(() {
+      _isOn = !_isOn;
+    });
+    debugPrint('Toggle tapped for ${widget.lightName}: $_isOn');
   }
 
   void _openColorPalette() {
@@ -83,9 +63,6 @@ class _LightZoneCardState extends State<LightZoneCard>
             setState(() {
               _selectedColor = color;
               _isOn = isOn;
-              if (isOn && _toggleController != null) {
-                _toggleController!.forward();
-              }
             });
             debugPrint('Light ${widget.lightName} updated: Color=$color, IsOn=$isOn');
           },
@@ -97,113 +74,94 @@ class _LightZoneCardState extends State<LightZoneCard>
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 1),
       child: GestureDetector(
         onTap: _openColorPalette,
         child: Container(
           width: double.infinity,
-          height: 100,
+          height: 88,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: const RadialGradient(
-              center: Alignment.center,
-              radius: 1.5,
-              colors: [Color(0xFF3D3D3D), Color(0xFF070707)],
-            ),
+            color: _isOn 
+                ? HSLColor.fromColor(_selectedColor).withLightness(
+                    HSLColor.fromColor(_selectedColor).lightness * 0.5
+                  ).toColor()
+                : const Color(0xFF1D1D1D),
+            borderRadius: BorderRadius.circular(12),
           ),
-          child: Container(
-            margin: const EdgeInsets.all(1.5), // Border width
-            decoration: BoxDecoration(
-              color: _isOn ? _selectedColor.withOpacity(0.3) : const Color(0xFF1D1D1D),
-              borderRadius: BorderRadius.circular(18.5),
-              border: _isOn ? Border.all(
-                color: _selectedColor.withOpacity(0.6),
-                width: 1,
-              ) : null,
-            ),
-            clipBehavior: Clip.none,
-            child: Stack(
-              clipBehavior: Clip.none,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Positioned(
-                  left: 16,
-                  top: 14,
-                  child: Text(
-                    widget.lightName,
-                    style: const TextStyle(
-                      fontFamily: 'SpaceMono',
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                if (widget.controllerTypeName != null && widget.controllerTypeName!.isNotEmpty)
-                  Positioned(
-                    right: 16,
-                    top: 14,
-                    child: Text(
-                      widget.controllerTypeName!,
-                      style: const TextStyle(
-                        fontFamily: 'SpaceMono',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF9E9E9E),
+                // Top row: Light name on left, Controller type on right
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Light name top left
+                    Flexible(
+                      child: Text(
+                        widget.lightName,
+                        style: const TextStyle(
+                          fontFamily: 'SpaceMono',
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-                Positioned(
-                  right: 16,
-                  top: 40,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      HapticFeedback.mediumImpact();
-                      debugPrint('Menu tapped for ${widget.lightName}');
-                    },
-                    child: const Icon(
-                      Icons.more_vert,
-                      color: Color(0xFF9E9E9E),
-                      size: 38,
-                    ),
-                  ),
+                    const SizedBox(width: 12),
+                    // Controller type top right
+                    if (widget.controllerTypeName != null && widget.controllerTypeName!.isNotEmpty)
+                      Text(
+                        widget.controllerTypeName!,
+                        style: const TextStyle(
+                          fontFamily: 'SpaceMono',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w400,
+                          color: Color(0xFF9E9E9E),
+                        ),
+                      ),
+                  ],
                 ),
-                Positioned(
-                  left: -10,
-                  top: 25,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: _onToggleTap,
-                    child: SizedBox(
-                      width: 112,
-                      height: 90,
-                      child: _isOn
-                        ? ColorFiltered(
-                            colorFilter: ColorFilter.mode(
-                              _selectedColor,
-                              BlendMode.modulate,
-                            ),
-                            child: Lottie.asset(
-                              'assets/animations/toggletap.json',
-                              controller: _toggleController,
-                              repeat: false,
-                              fit: BoxFit.contain,
-                              onLoaded: (composition) {
-                                _toggleController?.duration = composition.duration;
-                                _toggleController?.forward();
-                              },
-                            ),
-                          )
-                        : Image.asset(
-                            'assets/images/toggle.png',
-                            fit: BoxFit.contain,
-                          ),
+                // Bottom row: Toggle on left, Menu on right
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Toggle switch bottom left
+                    Transform.scale(
+                      scale: 1.15,
+                      alignment: Alignment.centerLeft,
+                      child: Switch(
+                        value: _isOn,
+                        onChanged: (_) => _onToggleTap(),
+                        activeColor: Colors.white,
+                        activeTrackColor: _isOn 
+                            ? HSLColor.fromColor(_selectedColor).withLightness(
+                                HSLColor.fromColor(_selectedColor).lightness * 0.3
+                              ).toColor()
+                            : null,
+                        inactiveThumbColor: Colors.grey,
+                        inactiveTrackColor: const Color(0xFF3A3A3A),
+                      ),
                     ),
-                  ),
+                    // 3-dot menu bottom right
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        HapticFeedback.mediumImpact();
+                        debugPrint('Menu tapped for ${widget.lightName}');
+                      },
+                      child: Icon(
+                        Icons.more_vert,
+                        color: const Color(0xFF9E9E9E),
+                        size: 32,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ),
         ),
       ),
     );

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:lottie/lottie.dart';
 import '../core/services/light_service.dart';
 
 class ColorsTabView extends StatefulWidget {
@@ -25,44 +24,35 @@ class ColorsTabView extends StatefulWidget {
   State<ColorsTabView> createState() => _ColorsTabViewState();
 }
 
-class _ColorsTabViewState extends State<ColorsTabView>
-    with SingleTickerProviderStateMixin {
-  Color _selectedColor = Colors.white;
-  AnimationController? _toggleController;
+class _ColorsTabViewState extends State<ColorsTabView> {
+  Color _selectedColor = const Color(
+    0xFFEC202C,
+  ); // Default to Red from color map
   bool _isOn = false;
   bool _isSettingColor = false; // Track API call state
+  double _brightness = 100.0; // Brightness value (0-100)
+  bool _showBrightnessIndicator = false; // Show brightness number indicator
 
   @override
   void initState() {
     super.initState();
-    _toggleController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
   }
 
   @override
   void dispose() {
-    _toggleController?.dispose();
     super.dispose();
   }
 
   void _onToggleTap() {
     HapticFeedback.mediumImpact();
-    
-    if (_isOn) {
-      _toggleController?.reverse().then((_) {
-        setState(() {
-          _isOn = false;
-        });
-      });
-    } else {
-      setState(() {
-        _isOn = true;
-      });
-    }
-    
-    debugPrint('Toggle tapped for ${widget.lightName}: ${!_isOn ? "ON" : "OFF"}');
+    setState(() {
+      _isOn = !_isOn;
+      // If turning on and brightness is 0, set it to 100
+      if (_isOn && _brightness == 0) {
+        _brightness = 100.0;
+      }
+    });
+    debugPrint('Toggle tapped for ${widget.lightName}: $_isOn');
   }
 
   /// Sets the color via API call
@@ -98,7 +88,9 @@ class _ColorsTabViewState extends State<ColorsTabView>
       }
 
       if (success) {
-        debugPrint('Color set successfully for ${widget.lightName}: ${LightService.colorToRgb(color)}');
+        debugPrint(
+          'Color set successfully for ${widget.lightName}: ${LightService.colorToRgb(color)}',
+        );
         // Show success feedback
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -136,40 +128,40 @@ class _ColorsTabViewState extends State<ColorsTabView>
     }
   }
 
-  final List<Color> _colors = [
-    const Color(0xFFFF0000), // Red
-    const Color(0xFFFF6B1A), // Pumpkin
-    const Color(0xFFFF8C00), // Orange
-    const Color.fromARGB(255, 184, 137, 42), // Marigold
-    const Color(0xFFFFB347), // Sunset
-    const Color(0xFFFFFF00), // Yellow
-    const Color(0xFFFFF44F), // Lemon
-    const Color(0xFF32CD32), // Lime
-    const Color(0xFFD1E231), // Pear
-    const Color(0xFF50C878), // Emerald
-    const Color(0xFF90EE90), // Light Green
-    const Color(0xFF00FF00), // Green
-    const Color(0xFF2E8B57), // Sea Foam
-    const Color(0xFF008080), // Teal
-    const Color(0xFF40E0D0), // Turquoise
-    const Color(0xFFE0FFFF), // Arctic
-    const Color(0xFF006994), // Ocean
-    const Color(0xFF87CEEB), // Sky
-    const Color(0xFF00BFFF), // Water
-    const Color(0xFF0F52BA), // Sapphire
-    const Color(0xFFADD8E6), // Light Blue
-    const Color(0xFF00008B), // Deep Blue
-    const Color(0xFF4B0082), // Indigo
-    const Color(0xFFDA70D6), // Orchid
-    const Color(0xFF800080), // Purple
-    const Color(0xFFE6E6FA), // Lavender
-    const Color(0xFFC8A2C8), // Lilac
-    const Color(0xFFFFC0CB), // Pink
-    const Color(0xFFFF69B4), // Bubblegum
-    const Color(0xFFFC8EAC), // Flamingo
-    const Color(0xFFFF1493), // Hot Pink
-    const Color(0xFFFF1493), // Deep Pink
-  ];
+  final Map<String, Color> _colorMap = {
+    'Red': const Color(0xFFEC202C),
+    'Pumpkin': const Color(0xFFED2F24),
+    'Orange': const Color(0xFFEF5023),
+    'Marigold': const Color(0xFFF37A20),
+    'Sunset': const Color(0xFFFAA819),
+    'Yellow': const Color(0xFFFDD901),
+    'Lemon': const Color(0xFFEFE814),
+    'Lime': const Color(0xFFC7D92C),
+    'Pear': const Color(0xFFA7CE38),
+    'Emerald': const Color(0xFF88C440),
+    'Lt Green': const Color(0xFF75BF43),
+    'Green': const Color(0xFF6ABC45),
+    'Sea Foam': const Color(0xFF6CBD45),
+    'Teal': const Color(0xFF71BE48),
+    'Turquoise': const Color(0xFF71C178),
+    'Arctic': const Color(0xFF70C5A2),
+    'Ocean': const Color(0xFF70C9CC),
+    'Sky': const Color(0xFF61CAE5),
+    'Water': const Color(0xFF43B4E7),
+    'Sapphire': const Color(0xFF4782C3),
+    'Lt Blue': const Color(0xFF4165AF),
+    'Deep Blue': const Color(0xFF3E57A6),
+    'Indigo': const Color(0xFF3C54A3),
+    'Orchid': const Color(0xFF4B53A3),
+    'Purple': const Color(0xFF6053A2),
+    'Lavender': const Color(0xFF7952A0),
+    'Lilac': const Color(0xFF94519F),
+    'Pink': const Color(0xFFB2519E),
+    'Bubblegum': const Color(0xFFC94D9B),
+    'Flamingo': const Color(0xFFE63A94),
+    'Hot Pink': const Color(0xFFEC2180),
+    'Deep Pink': const Color(0xFFED1F52),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -183,18 +175,23 @@ class _ColorsTabViewState extends State<ColorsTabView>
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: GestureDetector(
-              onTap: _isSettingColor ? null : () {
-                HapticFeedback.mediumImpact();
-                // Call the callback with the selected color and state before popping
-                if (widget.onColorSelected != null) {
-                  widget.onColorSelected!(_selectedColor, _isOn);
-                }
-                Navigator.pop(context);
-              },
+              onTap: _isSettingColor
+                  ? null
+                  : () {
+                      HapticFeedback.mediumImpact();
+                      // Call the callback with the selected color and state before popping
+                      if (widget.onColorSelected != null) {
+                        widget.onColorSelected!(_selectedColor, _isOn);
+                      }
+                      Navigator.pop(context);
+                    },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: _isSettingColor 
+                  color: _isSettingColor
                       ? const Color(0xFF2A2A2A).withOpacity(0.6)
                       : const Color(0xFF2A2A2A),
                   borderRadius: BorderRadius.circular(20),
@@ -205,7 +202,9 @@ class _ColorsTabViewState extends State<ColorsTabView>
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
                         ),
                       )
                     : const Text(
@@ -229,17 +228,21 @@ class _ColorsTabViewState extends State<ColorsTabView>
             // Color palette grid
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: GridView.builder(
+                  clipBehavior: Clip.none,
+                  padding: const EdgeInsets.all(12),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 5,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: 0.9,
                   ),
-                  itemCount: _colors.length + 1, // +1 for the add color button
+                  itemCount:
+                      _colorMap.length + 1, // +1 for the add color button
                   itemBuilder: (context, index) {
                     // Check if this is the last item (add color button)
-                    if (index == _colors.length) {
+                    if (index == _colorMap.length) {
                       return GestureDetector(
                         onTap: () {
                           HapticFeedback.mediumImpact();
@@ -248,22 +251,47 @@ class _ColorsTabViewState extends State<ColorsTabView>
                         },
                         child: Container(
                           decoration: BoxDecoration(
-                            color: const Color(0xFF6E6E6E), // Grey color
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+                            color: const Color(0xFF6E6E6E),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                              width: 1,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.add,
-                            color: Colors.white,
-                            size: 24,
+                          child: const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.add, color: Colors.white, size: 28),
+                              SizedBox(height: 4),
+                              Text(
+                                'Add Color',
+                                style: TextStyle(
+                                  fontFamily: 'SpaceMono',
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       );
                     }
-                    
+
                     // Regular color item
-                    final color = _colors[index];
+                    final colorName = _colorMap.keys.elementAt(index);
+                    final color = _colorMap[colorName]!;
                     final isSelected = color == _selectedColor;
+
+                    // Darken color if not selected
+                    final displayColor = isSelected
+                        ? color
+                        : HSLColor.fromColor(color)
+                              .withLightness(
+                                HSLColor.fromColor(color).lightness * 0.55,
+                              )
+                              .toColor();
+
                     return GestureDetector(
                       onTap: () {
                         HapticFeedback.mediumImpact();
@@ -272,30 +300,48 @@ class _ColorsTabViewState extends State<ColorsTabView>
                           // If toggle is off, turn it on when a color is selected
                           if (!_isOn) {
                             _isOn = true;
-                            _toggleController?.forward();
                           }
                         });
-                        debugPrint('Color selected: $color');
-                        
-                        // Send API call to set the color
-                        _setColorViaApi(color);
+                        debugPrint('Color selected: $colorName - $color');
+
+                        // Send API call to set the color (disabled for now)
+                        // _setColorViaApi(color);
                       },
-                      child: Container(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
                         decoration: BoxDecoration(
-                          color: color,
-                          shape: BoxShape.circle,
+                          color: displayColor,
+                          borderRadius: BorderRadius.circular(16),
                           border: isSelected
-                              ? Border.all(color: Colors.white, width: 3)
-                              : null,
+                              ? Border.all(color: Colors.white, width: 4)
+                              : Border.all(color: Colors.transparent, width: 4),
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color: color.withOpacity(0.5),
-                                    blurRadius: 10,
-                                    spreadRadius: 2,
+                                    color: color.withOpacity(0.6),
+                                    blurRadius: 12,
+                                    spreadRadius: 3,
                                   ),
                                 ]
                               : null,
+                        ),
+                        transform: isSelected
+                            ? Matrix4.identity().scaled(1.05)
+                            : Matrix4.identity(),
+                        child: Center(
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 300),
+                            style: TextStyle(
+                              fontFamily: 'SpaceMono',
+                              fontSize: isSelected ? 13 : 12,
+                              fontWeight: isSelected
+                                  ? FontWeight.w900
+                                  : FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                            child: Text(colorName, textAlign: TextAlign.center),
+                          ),
                         ),
                       ),
                     );
@@ -305,106 +351,220 @@ class _ColorsTabViewState extends State<ColorsTabView>
             ),
             // Light card at the bottom
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 24),
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
               child: Container(
-                width: double.infinity,
-                height: 100,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  gradient: const RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.5,
-                    colors: [Color(0xFF3D3D3D), Color(0xFF070707)],
+                  border: Border.all(
+                    color: HSLColor.fromColor(_selectedColor)
+                          .withLightness(
+                            HSLColor.fromColor(_selectedColor).lightness *
+                                0.3,
+                          )
+                          .toColor()
+                          .withOpacity(0.6),
+                    width: 4,
                   ),
                 ),
                 child: Container(
-                  margin: const EdgeInsets.all(1.5),
+                  width: double.infinity,
+                  height: 115,
                   decoration: BoxDecoration(
-                    color: _isOn ? _selectedColor.withOpacity(0.3) : const Color(0xFF1D1D1D),
-                    borderRadius: BorderRadius.circular(18.5),
-                    border: _isOn ? Border.all(
-                      color: _selectedColor.withOpacity(0.6),
-                      width: 1,
-                    ) : null,
+                    color: _isOn
+                        ? (_brightness == 0
+                            ? const Color(0xFF212121)
+                            : HSLColor.fromColor(_selectedColor)
+                                .withLightness(
+                                  (HSLColor.fromColor(_selectedColor).lightness *
+                                      0.15) + (HSLColor.fromColor(_selectedColor).lightness *
+                                      0.35 * (_brightness / 100)),
+                                )
+                                .toColor())
+                        : const Color(0xFF1D1D1D),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  clipBehavior: Clip.none,
-                  child: Stack(
-                    clipBehavior: Clip.none,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Positioned(
-                        left: 16,
-                        top: 14,
-                        child: Text(
-                          widget.lightName,
-                          style: const TextStyle(
-                            fontFamily: 'SpaceMono',
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      if (widget.controllerTypeName != null && widget.controllerTypeName!.isNotEmpty)
-                        Positioned(
-                          right: 16,
-                          top: 14,
-                          child: Text(
-                            widget.controllerTypeName!,
-                            style: const TextStyle(
-                              fontFamily: 'SpaceMono',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF9E9E9E),
+                      // Top row: Light name on left, Controller type on right
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Light name top left
+                          Flexible(
+                            child: Text(
+                              widget.lightName,
+                              style: const TextStyle(
+                                fontFamily: 'SpaceMono',
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ),
-                      Positioned(
-                        right: 16,
-                        top: 40,
-                        child: GestureDetector(
-                          onTap: () {
-                            HapticFeedback.mediumImpact();
-                            debugPrint('Menu tapped for ${widget.lightName}');
-                          },
-                          child: const Icon(
-                            Icons.more_vert,
-                            color: Color(0xFF9E9E9E),
-                            size: 38,
-                          ),
-                        ),
+                          const SizedBox(width: 12),
+                          // Controller type top right
+                          if (widget.controllerTypeName != null &&
+                              widget.controllerTypeName!.isNotEmpty)
+                            Text(
+                              widget.controllerTypeName!,
+                              style: const TextStyle(
+                                fontFamily: 'SpaceMono',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w400,
+                                color: Color(0xFF9E9E9E),
+                              ),
+                            ),
+                        ],
                       ),
-                      Positioned(
-                        left: -10,
-                        top: 25,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: _onToggleTap,
-                          child: SizedBox(
-                            width: 112,
-                            height: 90,
-                            child: _isOn
-                              ? ColorFiltered(
-                                  colorFilter: ColorFilter.mode(
-                                    _selectedColor,
-                                    BlendMode.modulate,
+                      // Middle row: Toggle on left, Menu on right
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Toggle switch left
+                          Transform.scale(
+                            scale: 1.15,
+                            alignment: Alignment.centerLeft,
+                            child: Switch(
+                              value: _isOn,
+                              onChanged: (_) => _onToggleTap(),
+                              activeColor: Colors.white,
+                              activeTrackColor: _isOn
+                                  ? HSLColor.fromColor(_selectedColor)
+                                        .withLightness(
+                                          HSLColor.fromColor(
+                                                _selectedColor,
+                                              ).lightness *
+                                              0.3,
+                                        )
+                                        .toColor()
+                                  : null,
+                              inactiveThumbColor: Colors.grey,
+                              inactiveTrackColor: const Color(0xFF3A3A3A),
+                            ),
+                          ),
+                          // 3-dot menu right
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              HapticFeedback.mediumImpact();
+                              debugPrint('Menu tapped for ${widget.lightName}');
+                            },
+                            child: Icon(
+                              Icons.more_vert,
+                              color: const Color(0xFF9E9E9E),
+                              size: 32,
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Bottom row: Brightness slider with indicator
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: SliderTheme(
+                                  data: SliderThemeData(
+                                    trackHeight: 4,
+                                    thumbShape: const RoundSliderThumbShape(
+                                      enabledThumbRadius: 8,
+                                    ),
+                                    overlayShape: const RoundSliderOverlayShape(
+                                      overlayRadius: 16,
+                                    ),
+                                    activeTrackColor: Colors.white,
+                                    inactiveTrackColor: Colors.white
+                                        .withOpacity(0.3),
+                                    thumbColor: Colors.white,
+                                    overlayColor: Colors.white.withOpacity(0.2),
                                   ),
-                                  child: Lottie.asset(
-                                    'assets/animations/toggletap.json',
-                                    controller: _toggleController,
-                                    repeat: false,
-                                    fit: BoxFit.contain,
-                                    onLoaded: (composition) {
-                                      _toggleController?.duration = composition.duration;
-                                      _toggleController?.forward();
+                                  child: Slider(
+                                    value: _brightness,
+                                    min: 0,
+                                    max: 100,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _brightness = value;
+                                        _showBrightnessIndicator = true;
+                                        // Automatically turn off toggle when brightness reaches 0
+                                        if (value == 0 && _isOn) {
+                                          _isOn = false;
+                                        }
+                                        // Automatically turn on toggle when brightness is adjusted while off
+                                        else if (value > 0 && !_isOn) {
+                                          _isOn = true;
+                                        }
+                                      });
+                                    },
+                                    onChangeStart: (value) {
+                                      setState(() {
+                                        _showBrightnessIndicator = true;
+                                      });
+                                    },
+                                    onChangeEnd: (value) {
+                                      HapticFeedback.mediumImpact();
+                                      setState(() {
+                                        _showBrightnessIndicator = false;
+                                      });
+                                      debugPrint(
+                                        'Brightness set to: ${value.round()}%',
+                                      );
                                     },
                                   ),
-                                )
-                              : Image.asset(
-                                  'assets/images/toggle.png',
-                                  fit: BoxFit.contain,
                                 ),
+                              ),
+                            ],
                           ),
-                        ),
+                          // Brightness indicator
+                          if (_showBrightnessIndicator)
+                            Positioned(
+                              top: -50,
+                              left:
+                                  (_brightness / 100) *
+                                      (MediaQuery.of(context).size.width -
+                                          110) +
+                                  14 -
+                                  5,
+                              child: AnimatedOpacity(
+                                opacity: _showBrightnessIndicator ? 1.0 : 0.0,
+                                duration: const Duration(milliseconds: 150),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.2),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    '${_brightness.round()}',
+                                    style: const TextStyle(
+                                      fontFamily: 'SpaceMono',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ],
                   ),
