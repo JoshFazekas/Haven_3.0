@@ -438,63 +438,60 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               ),
               Expanded(
                 child: GestureDetector(
-                    onVerticalDragUpdate: _onVerticalDragUpdate,
-                    onVerticalDragEnd: _onVerticalDragEnd,
-                    behavior: HitTestBehavior.translucent,
-                    child: _devices.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 26.0),
-                            child: const Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    "It's a little empty here..",
-                                    style: TextStyle(
-                                      fontFamily: 'SpaceMono',
-                                      fontSize: 23,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFFFFFFFF),
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    "Add your first controller to get started",
-                                    style: TextStyle(
-                                      fontFamily: 'SpaceMono',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF828282),
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : Expanded(
+                  onVerticalDragUpdate: _onVerticalDragUpdate,
+                  onVerticalDragEnd: _onVerticalDragEnd,
+                  behavior: HitTestBehavior.translucent,
+                  child: _devices.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 26.0),
+                          child: const Center(
                             child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Expanded(
-                                  child: ListView(
-                                    padding: const EdgeInsets.only(top: 12),
-                                    children: [
-                                      // Individual light/zone cards
-                                      ..._buildLightZoneCards(),
-                                    ],
+                                Text(
+                                  "It's a little empty here..",
+                                  style: TextStyle(
+                                    fontFamily: 'SpaceMono',
+                                    fontSize: 23,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFFFFFFF),
                                   ),
+                                  textAlign: TextAlign.center,
                                 ),
-                                const SizedBox(height: 12),
-                                DeviceControlCard(
-                                  devices: _devices,
+                                SizedBox(height: 8),
+                                Text(
+                                  "Add your first controller to get started",
+                                  style: TextStyle(
+                                    fontFamily: 'SpaceMono',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF828282),
+                                  ),
+                                  textAlign: TextAlign.center,
                                 ),
-                                const SizedBox(height: 12), // Space above footer
                               ],
                             ),
                           ),
-                  ),
+                        )
+                      : Column(
+                          children: [
+                            Expanded(
+                              child: ListView.builder(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: _buildLightZoneCards().length,
+                                itemBuilder: (context, index) {
+                                  return _buildLightZoneCards()[index];
+                                },
+                              ),
+                            ),
+                            DeviceControlCard(
+                              devices: _devices,
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                        ),
                 ),
+              ),
               ],
             ),
 
@@ -583,12 +580,22 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   List<Widget> _buildLightZoneCards() {
     final List<Widget> cards = [];
     
-    for (final device in _devices) {
+    debugPrint('=== Building light zone cards ===');
+    debugPrint('Total devices: ${_devices.length}');
+    
+    for (int deviceIndex = 0; deviceIndex < _devices.length; deviceIndex++) {
+      final device = _devices[deviceIndex];
+      debugPrint('Device $deviceIndex: ${device.controllerTypeName}');
+      debugPrint('Light names: "${device.lightNames}"');
+      
       if (device.lightNames.isNotEmpty) {
         final lights = device.lightNames.split(',');
+        debugPrint('Split into ${lights.length} lights: $lights');
+        
         for (int i = 0; i < lights.length; i++) {
           final lightName = lights[i].trim();
           if (lightName.isNotEmpty) {
+            debugPrint('Creating card for light: "$lightName"');
             cards.add(
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -605,9 +612,13 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             );
           }
         }
+      } else {
+        debugPrint('Device has no light names');
       }
     }
     
+    debugPrint('Total cards created: ${cards.length}');
+    debugPrint('=== End building light zone cards ===');
     return cards;
   }
 
