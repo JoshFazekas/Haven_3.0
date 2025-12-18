@@ -60,94 +60,83 @@ class _DeviceControlCardState extends State<DeviceControlCard> {
         height: 101,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          gradient: const RadialGradient(
-            center: Alignment.center,
-            radius: 1.5,
-            colors: [Color(0xFF3D3D3D), Color(0xFF070707)],
-          ),
+          color: const Color(0xFF1D1D1D),
         ),
-        child: Container(
-          margin: const EdgeInsets.all(1.5), // Border width
-          decoration: BoxDecoration(
-            color: const Color(0xFF1D1D1D),
-            borderRadius: BorderRadius.circular(18.5),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Stack(
-            children: [
-              // Left side content - title and buttons
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'ALL LIGHTS / ZONES',
-                    style: TextStyle(
-                      fontFamily: 'SpaceMono',
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Stack(
+          children: [
+            // Left side content - title and buttons
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'ALL LIGHTS / ZONES',
+                  style: TextStyle(
+                    fontFamily: 'SpaceMono',
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 1,
-                        child: _buildButton('ON', isOn: true),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 1,
-                        child: _buildButton('OFF', isOn: false),
-                      ),
-                      const Spacer(flex: 2),
-                    ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 1,
+                      child: _buildButton('ON', isOn: true),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 1,
+                      child: _buildButton('OFF', isOn: false),
+                    ),
+                    const Spacer(flex: 2),
+                  ],
+                ),
+              ],
+            ),
+            // Right side - icon buttons centered vertically
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildImageIconButton(
+                    imagePath: 'assets/images/colors.png',
+                    backgroundColor: const Color(0xFF2A2A2A),
+                    borderColor: const Color(0xFF9E9E9E),
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      debugPrint('Color palette tapped');
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  _buildIconButton(
+                    icon: Icons.wb_sunny_outlined,
+                    backgroundColor: const Color(0xFF3D2508),
+                    borderColor: const Color(0xFFD4842A),
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      debugPrint('Brightness tapped');
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  _buildImageIconButton(
+                    imagePath: 'assets/images/imageview.png',
+                    backgroundColor: const Color(0xFF0D1F33),
+                    borderColor: const Color(0xFF3A7BD5),
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      debugPrint('Image view tapped');
+                    },
                   ),
                 ],
               ),
-              // Right side - icon buttons centered vertically
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildImageIconButton(
-                      imagePath: 'assets/images/colors.png',
-                      backgroundColor: const Color(0xFF2A2A2A),
-                      borderColor: const Color(0xFF9E9E9E),
-                      onTap: () {
-                        HapticFeedback.mediumImpact();
-                        debugPrint('Color palette tapped');
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    _buildIconButton(
-                      icon: Icons.wb_sunny_outlined,
-                      backgroundColor: const Color(0xFF3D2508),
-                      borderColor: const Color(0xFFD4842A),
-                      onTap: () {
-                        HapticFeedback.mediumImpact();
-                        debugPrint('Brightness tapped');
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    _buildImageIconButton(
-                      imagePath: 'assets/images/imageview.png',
-                      backgroundColor: const Color(0xFF0D1F33),
-                      borderColor: const Color(0xFF3A7BD5),
-                      onTap: () {
-                        HapticFeedback.mediumImpact();
-                        debugPrint('Image view tapped');
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -193,7 +182,6 @@ class _DeviceControlCardState extends State<DeviceControlCard> {
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: borderColor, width: 1),
         ),
         child: Icon(icon, color: Colors.white, size: 24),
       ),
@@ -213,7 +201,6 @@ class _DeviceControlCardState extends State<DeviceControlCard> {
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: borderColor, width: 1),
         ),
         child: Image.asset(imagePath, width: 24, height: 24),
       ),

@@ -163,18 +163,17 @@ class _ColorsTabViewState extends State<ColorsTabView>
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 10),
             // Color palette grid
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.only(left: 12, right: 12, bottom: 15),
+                padding: const EdgeInsets.only(left: 6, right: 6, bottom: 0),
                 child: GridView.builder(
                   clipBehavior: Clip.none,
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 5,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 6,
+                    mainAxisSpacing: 6,
                     childAspectRatio: 0.9,
                   ),
                   itemCount:
@@ -303,12 +302,7 @@ class _ColorsTabViewState extends State<ColorsTabView>
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: HSLColor.fromColor(_selectedColor)
-                        .withLightness(
-                          HSLColor.fromColor(_selectedColor).lightness * 0.3,
-                        )
-                        .toColor()
-                        .withOpacity(0.6),
+                    color: _selectedColor.withOpacity(0.4),
                     width: 4,
                   ),
                 ),
@@ -319,19 +313,12 @@ class _ColorsTabViewState extends State<ColorsTabView>
                     color: _isOn
                         ? (_brightness == 0
                               ? const Color(0xFF212121)
-                              : HSLColor.fromColor(_selectedColor)
-                                    .withLightness(
-                                      (HSLColor.fromColor(
-                                                _selectedColor,
-                                              ).lightness *
-                                              0.15) +
-                                          (HSLColor.fromColor(
-                                                _selectedColor,
-                                              ).lightness *
-                                              0.35 *
-                                              (_brightness / 100)),
-                                    )
-                                    .toColor())
+                              : Color.fromRGBO(
+                                  _selectedColor.red,
+                                  _selectedColor.green,
+                                  _selectedColor.blue,
+                                  0.15 + (0.35 * (_brightness / 100)),
+                                ))
                         : const Color(0xFF1D1D1D),
                     borderRadius: BorderRadius.circular(20),
                   ),
@@ -388,14 +375,7 @@ class _ColorsTabViewState extends State<ColorsTabView>
                               onChanged: (_) => _onToggleTap(),
                               activeColor: Colors.white,
                               activeTrackColor: _isOn
-                                  ? HSLColor.fromColor(_selectedColor)
-                                        .withLightness(
-                                          HSLColor.fromColor(
-                                                _selectedColor,
-                                              ).lightness *
-                                              0.3,
-                                        )
-                                        .toColor()
+                                  ? _selectedColor.withOpacity(0.5)
                                   : null,
                               inactiveThumbColor: Colors.grey,
                               inactiveTrackColor: const Color(0xFF3A3A3A),

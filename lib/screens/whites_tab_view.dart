@@ -37,10 +37,21 @@ class _WhitesTabViewState extends State<WhitesTabView> {
   late bool _isOn;
   late double _brightness;
 
+  final Map<String, Color> _whiteTemperatures = {
+    '2700K': const Color(0xFFF8E96C),
+    '3000K': const Color(0xFFF6F08E),
+    '3500K': const Color(0xFFF4F4AC),
+    '3700K': const Color(0xFFF2F4C2),
+    '4000K': const Color(0xFFECF5DA),
+    '4100K': const Color(0xFFE3F3E9),
+    '4700K': const Color(0xFFDDF1F2),
+    '5000K': const Color(0xFFD6EFF6),
+  };
+
   @override
   void initState() {
     super.initState();
-    _selectedColor = widget.initialColor ?? Colors.white;
+    _selectedColor = widget.initialColor ?? const Color(0xFFF8E96C);
     _isOn = widget.initialIsOn ?? false;
     _brightness = widget.initialBrightness ?? 100.0;
   }
@@ -91,18 +102,87 @@ class _WhitesTabViewState extends State<WhitesTabView> {
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 10),
-            // Demo content area
+            // White temperature grid
             Expanded(
-              child: Center(
-                child: Text(
-                  'SCREEN DEMO',
-                  style: TextStyle(
-                    fontFamily: 'SpaceMono',
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white.withOpacity(0.3),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 6, right: 6, bottom: 0),
+                child: GridView.builder(
+                  clipBehavior: Clip.none,
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 5,
+                    crossAxisSpacing: 6,
+                    mainAxisSpacing: 6,
+                    childAspectRatio: 0.9,
                   ),
+                  itemCount: _whiteTemperatures.length,
+                  itemBuilder: (context, index) {
+                    final tempName = _whiteTemperatures.keys.elementAt(index);
+                    final color = _whiteTemperatures[tempName]!;
+                    final isSelected = color == _selectedColor;
+
+                    // Darken white temperatures when not selected
+                    // This includes when a non-white color is selected
+                    final displayColor = isSelected
+                        ? color
+                        : Color.fromRGBO(
+                            color.red,
+                            color.green,
+                            color.blue,
+                            0.6,
+                          );
+
+                    return GestureDetector(
+                      onTap: () {
+                        HapticFeedback.mediumImpact();
+                        setState(() {
+                          _selectedColor = color;
+                          // If toggle is off, turn it on when a color is selected
+                          if (!_isOn) {
+                            _isOn = true;
+                          }
+                        });
+                        debugPrint('White temperature selected: $tempName - $color');
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                        decoration: BoxDecoration(
+                          color: displayColor,
+                          borderRadius: BorderRadius.circular(16),
+                          border: isSelected
+                              ? Border.all(color: Colors.white, width: 4)
+                              : Border.all(color: Colors.transparent, width: 4),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: color.withOpacity(0.6),
+                                    blurRadius: 12,
+                                    spreadRadius: 3,
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        transform: isSelected
+                            ? Matrix4.identity().scaled(1.05)
+                            : Matrix4.identity(),
+                        child: Center(
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 300),
+                            style: TextStyle(
+                              fontFamily: 'SpaceMono',
+                              fontSize: isSelected ? 13 : 12,
+                              fontWeight: isSelected
+                                  ? FontWeight.w900
+                                  : FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                            child: Text(tempName, textAlign: TextAlign.center),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -129,12 +209,7 @@ class _WhitesTabViewState extends State<WhitesTabView> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: HSLColor.fromColor(_selectedColor)
-                .withLightness(
-                  HSLColor.fromColor(_selectedColor).lightness * 0.3,
-                )
-                .toColor()
-                .withOpacity(0.6),
+            color: _selectedColor.withOpacity(0.4),
             width: 4,
           ),
         ),
@@ -145,19 +220,12 @@ class _WhitesTabViewState extends State<WhitesTabView> {
             color: _isOn
                 ? (_brightness == 0
                       ? const Color(0xFF212121)
-                      : HSLColor.fromColor(_selectedColor)
-                            .withLightness(
-                              (HSLColor.fromColor(
-                                        _selectedColor,
-                                      ).lightness *
-                                      0.15) +
-                                  (HSLColor.fromColor(
-                                        _selectedColor,
-                                      ).lightness *
-                                      0.35 *
-                                      (_brightness / 100)),
-                            )
-                            .toColor())
+                      : Color.fromRGBO(
+                          _selectedColor.red,
+                          _selectedColor.green,
+                          _selectedColor.blue,
+                          0.15 + (0.35 * (_brightness / 100)),
+                        ))
                 : const Color(0xFF1D1D1D),
             borderRadius: BorderRadius.circular(20),
           ),
@@ -211,14 +279,7 @@ class _WhitesTabViewState extends State<WhitesTabView> {
                       },
                       activeColor: Colors.white,
                       activeTrackColor: _isOn
-                          ? HSLColor.fromColor(_selectedColor)
-                                .withLightness(
-                                  HSLColor.fromColor(
-                                        _selectedColor,
-                                      ).lightness *
-                                      0.3,
-                                )
-                                .toColor()
+                          ? _selectedColor.withOpacity(0.5)
                           : null,
                       inactiveThumbColor: Colors.grey,
                       inactiveTrackColor: const Color(0xFF3A3A3A),
@@ -256,10 +317,26 @@ class _WhitesTabViewState extends State<WhitesTabView> {
                         overlayColor: Colors.white.withOpacity(0.2),
                       ),
                       child: Slider(
-                        value: 100,
+                        value: _brightness,
                         min: 0,
                         max: 100,
-                        onChanged: (value) {},
+                        onChanged: (value) {
+                          setState(() {
+                            _brightness = value;
+                            // Automatically turn off toggle when brightness reaches 0
+                            if (value == 0 && _isOn) {
+                              _isOn = false;
+                            }
+                            // Automatically turn on toggle when brightness is adjusted while off
+                            else if (value > 0 && !_isOn) {
+                              _isOn = true;
+                            }
+                          });
+                        },
+                        onChangeEnd: (value) {
+                          HapticFeedback.mediumImpact();
+                          debugPrint('Brightness set to: ${value.round()}%');
+                        },
                       ),
                     ),
                   ),
