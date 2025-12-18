@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../core/services/light_service.dart';
+import 'whites_tab_view.dart';
+import 'effects_tab_view.dart';
+import 'store_tab_view.dart';
 
 class ColorsTabView extends StatefulWidget {
   final String lightName;
@@ -9,6 +12,9 @@ class ColorsTabView extends StatefulWidget {
   final int? locationId; // For API calls
   final int? lightId; // For API calls
   final int? zoneId; // For API calls
+  final Color? initialColor;
+  final bool? initialIsOn;
+  final double? initialBrightness;
 
   const ColorsTabView({
     super.key,
@@ -18,28 +24,48 @@ class ColorsTabView extends StatefulWidget {
     this.locationId,
     this.lightId,
     this.zoneId,
+    this.initialColor,
+    this.initialIsOn,
+    this.initialBrightness,
   });
 
   @override
   State<ColorsTabView> createState() => _ColorsTabViewState();
 }
 
-class _ColorsTabViewState extends State<ColorsTabView> {
-  Color _selectedColor = const Color(
-    0xFFEC202C,
-  ); // Default to Red from color map
-  bool _isOn = false;
-  bool _isSettingColor = false; // Track API call state
-  double _brightness = 100.0; // Brightness value (0-100)
+class _ColorsTabViewState extends State<ColorsTabView>
+    with SingleTickerProviderStateMixin {
+  late Color _selectedColor;
+  late bool _isOn;
+  late double _brightness;
   bool _showBrightnessIndicator = false; // Show brightness number indicator
+  Timer? _fadeTimer;
+  AnimationController? _sliderFadeController;
+  Animation<Color?>? _sliderColorAnimation;
 
   @override
   void initState() {
     super.initState();
+    _selectedColor = widget.initialColor ?? const Color(0xFFEC202C);
+    _isOn = widget.initialIsOn ?? false;
+    _brightness = widget.initialBrightness ?? 100.0;
+    _sliderFadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _sliderColorAnimation =
+        ColorTween(begin: Colors.white, end: const Color(0xFFB0B0B0)).animate(
+          CurvedAnimation(
+            parent: _sliderFadeController!,
+            curve: Curves.easeInOut,
+          ),
+        );
   }
 
   @override
   void dispose() {
+    _fadeTimer?.cancel();
+    _sliderFadeController?.dispose();
     super.dispose();
   }
 
@@ -53,79 +79,6 @@ class _ColorsTabViewState extends State<ColorsTabView> {
       }
     });
     debugPrint('Toggle tapped for ${widget.lightName}: $_isOn');
-  }
-
-  /// Sets the color via API call
-  Future<void> _setColorViaApi(Color color) async {
-    if (_isSettingColor) return; // Prevent multiple simultaneous calls
-
-    setState(() {
-      _isSettingColor = true;
-    });
-
-    try {
-      bool success = false;
-
-      // Try different API endpoints based on available IDs
-      if (widget.lightId != null) {
-        success = await LightService.setColorByLightId(
-          lightId: widget.lightId!,
-          color: color,
-          brightness: 100,
-        );
-      } else if (widget.zoneId != null) {
-        success = await LightService.setColorByZoneId(
-          zoneId: widget.zoneId!,
-          color: color,
-          brightness: 100,
-        );
-      } else if (widget.locationId != null) {
-        success = await LightService.setColor(
-          locationId: widget.locationId!,
-          color: color,
-          brightness: 100,
-        );
-      }
-
-      if (success) {
-        debugPrint(
-          'Color set successfully for ${widget.lightName}: ${LightService.colorToRgb(color)}',
-        );
-        // Show success feedback
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Color set for ${widget.lightName}'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 1),
-          ),
-        );
-      } else {
-        debugPrint('Failed to set color for ${widget.lightName}');
-        // Show error feedback
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to set color for ${widget.lightName}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error setting color: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error setting color: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSettingColor = false;
-        });
-      }
-    }
   }
 
   final Map<String, Color> _colorMap = {
@@ -166,6 +119,7 @@ class _ColorsTabViewState extends State<ColorsTabView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: const Color(0xFF1C1C1C),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1C1C1C),
@@ -175,47 +129,32 @@ class _ColorsTabViewState extends State<ColorsTabView> {
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: GestureDetector(
-              onTap: _isSettingColor
-                  ? null
-                  : () {
-                      HapticFeedback.mediumImpact();
-                      // Call the callback with the selected color and state before popping
-                      if (widget.onColorSelected != null) {
-                        widget.onColorSelected!(_selectedColor, _isOn);
-                      }
-                      Navigator.pop(context);
-                    },
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                // Call the callback with the selected color and state before popping
+                if (widget.onColorSelected != null) {
+                  widget.onColorSelected!(_selectedColor, _isOn);
+                }
+                Navigator.pop(context);
+              },
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: _isSettingColor
-                      ? const Color(0xFF2A2A2A).withOpacity(0.6)
-                      : const Color(0xFF2A2A2A),
+                  color: const Color(0xFF2A2A2A),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: _isSettingColor
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
-                          ),
-                        ),
-                      )
-                    : const Text(
-                        'Done',
-                        style: TextStyle(
-                          fontFamily: 'SpaceMono',
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
+                child: const Text(
+                  'Done',
+                  style: TextStyle(
+                    fontFamily: 'SpaceMono',
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ),
@@ -228,7 +167,7 @@ class _ColorsTabViewState extends State<ColorsTabView> {
             // Color palette grid
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.only(left: 12, right: 12, bottom: 15),
                 child: GridView.builder(
                   clipBehavior: Clip.none,
                   padding: const EdgeInsets.all(12),
@@ -349,20 +288,27 @@ class _ColorsTabViewState extends State<ColorsTabView> {
                 ),
               ),
             ),
+            // Container above the light card - Tab selector
+            Padding(
+              padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _buildTabSelector(),
+              ),
+            ),
             // Light card at the bottom
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 9),
               child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(24),
                   border: Border.all(
                     color: HSLColor.fromColor(_selectedColor)
-                          .withLightness(
-                            HSLColor.fromColor(_selectedColor).lightness *
-                                0.3,
-                          )
-                          .toColor()
-                          .withOpacity(0.6),
+                        .withLightness(
+                          HSLColor.fromColor(_selectedColor).lightness * 0.3,
+                        )
+                        .toColor()
+                        .withOpacity(0.6),
                     width: 4,
                   ),
                 ),
@@ -372,16 +318,22 @@ class _ColorsTabViewState extends State<ColorsTabView> {
                   decoration: BoxDecoration(
                     color: _isOn
                         ? (_brightness == 0
-                            ? const Color(0xFF212121)
-                            : HSLColor.fromColor(_selectedColor)
-                                .withLightness(
-                                  (HSLColor.fromColor(_selectedColor).lightness *
-                                      0.15) + (HSLColor.fromColor(_selectedColor).lightness *
-                                      0.35 * (_brightness / 100)),
-                                )
-                                .toColor())
+                              ? const Color(0xFF212121)
+                              : HSLColor.fromColor(_selectedColor)
+                                    .withLightness(
+                                      (HSLColor.fromColor(
+                                                _selectedColor,
+                                              ).lightness *
+                                              0.15) +
+                                          (HSLColor.fromColor(
+                                                _selectedColor,
+                                              ).lightness *
+                                              0.35 *
+                                              (_brightness / 100)),
+                                    )
+                                    .toColor())
                         : const Color(0xFF1D1D1D),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -471,54 +423,86 @@ class _ColorsTabViewState extends State<ColorsTabView> {
                           Row(
                             children: [
                               Expanded(
-                                child: SliderTheme(
-                                  data: SliderThemeData(
-                                    trackHeight: 4,
-                                    thumbShape: const RoundSliderThumbShape(
-                                      enabledThumbRadius: 8,
-                                    ),
-                                    overlayShape: const RoundSliderOverlayShape(
-                                      overlayRadius: 16,
-                                    ),
-                                    activeTrackColor: Colors.white,
-                                    inactiveTrackColor: Colors.white
-                                        .withOpacity(0.3),
-                                    thumbColor: Colors.white,
-                                    overlayColor: Colors.white.withOpacity(0.2),
-                                  ),
-                                  child: Slider(
-                                    value: _brightness,
-                                    min: 0,
-                                    max: 100,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _brightness = value;
-                                        _showBrightnessIndicator = true;
-                                        // Automatically turn off toggle when brightness reaches 0
-                                        if (value == 0 && _isOn) {
-                                          _isOn = false;
-                                        }
-                                        // Automatically turn on toggle when brightness is adjusted while off
-                                        else if (value > 0 && !_isOn) {
-                                          _isOn = true;
-                                        }
-                                      });
-                                    },
-                                    onChangeStart: (value) {
-                                      setState(() {
-                                        _showBrightnessIndicator = true;
-                                      });
-                                    },
-                                    onChangeEnd: (value) {
-                                      HapticFeedback.mediumImpact();
-                                      setState(() {
-                                        _showBrightnessIndicator = false;
-                                      });
-                                      debugPrint(
-                                        'Brightness set to: ${value.round()}%',
-                                      );
-                                    },
-                                  ),
+                                child: AnimatedBuilder(
+                                  animation:
+                                      _sliderFadeController ??
+                                      AnimationController(vsync: this),
+                                  builder: (context, child) {
+                                    final sliderColor = _showBrightnessIndicator
+                                        ? Colors.white
+                                        : (_sliderColorAnimation?.value ??
+                                              const Color(0xFFB0B0B0));
+
+                                    return SliderTheme(
+                                      data: SliderThemeData(
+                                        trackHeight: 4,
+                                        thumbShape: const RoundSliderThumbShape(
+                                          enabledThumbRadius: 8,
+                                        ),
+                                        overlayShape:
+                                            const RoundSliderOverlayShape(
+                                              overlayRadius: 16,
+                                            ),
+                                        activeTrackColor: sliderColor,
+                                        inactiveTrackColor: Colors.white
+                                            .withOpacity(0.3),
+                                        thumbColor: sliderColor,
+                                        overlayColor: Colors.white.withOpacity(
+                                          0.2,
+                                        ),
+                                      ),
+                                      child: Slider(
+                                        value: _brightness,
+                                        min: 0,
+                                        max: 100,
+                                        onChanged: (value) {
+                                          // Cancel any pending fade timer
+                                          _fadeTimer?.cancel();
+                                          _sliderFadeController?.reset();
+
+                                          setState(() {
+                                            _brightness = value;
+                                            _showBrightnessIndicator = true;
+                                            // Automatically turn off toggle when brightness reaches 0
+                                            if (value == 0 && _isOn) {
+                                              _isOn = false;
+                                            }
+                                            // Automatically turn on toggle when brightness is adjusted while off
+                                            else if (value > 0 && !_isOn) {
+                                              _isOn = true;
+                                            }
+                                          });
+                                        },
+                                        onChangeStart: (value) {
+                                          // Cancel any pending fade timer
+                                          _fadeTimer?.cancel();
+                                          _sliderFadeController?.reset();
+
+                                          setState(() {
+                                            _showBrightnessIndicator = true;
+                                          });
+                                        },
+                                        onChangeEnd: (value) {
+                                          HapticFeedback.mediumImpact();
+                                          setState(() {
+                                            _showBrightnessIndicator = false;
+                                          });
+                                          debugPrint(
+                                            'Brightness set to: ${value.round()}%',
+                                          );
+
+                                          // Start fade animation after a delay
+                                          _fadeTimer?.cancel();
+                                          _fadeTimer = Timer(
+                                            const Duration(milliseconds: 500),
+                                            () {
+                                              _sliderFadeController?.forward();
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                             ],
@@ -526,7 +510,7 @@ class _ColorsTabViewState extends State<ColorsTabView> {
                           // Brightness indicator
                           if (_showBrightnessIndicator)
                             Positioned(
-                              top: -50,
+                              top: -35,
                               left:
                                   (_brightness / 100) *
                                       (MediaQuery.of(context).size.width -
@@ -573,6 +557,157 @@ class _ColorsTabViewState extends State<ColorsTabView> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTabSelector() {
+    const int selectedIndex = 0; // Colors tab
+    const List<Map<String, String>> tabs = [
+      {'label': 'Colors', 'icon': 'assets/images/colorsicon.png'},
+      {'label': 'Whites', 'icon': 'assets/images/whitesicon.png'},
+      {'label': 'Effects', 'icon': 'assets/images/effectsicon.png'},
+      {'label': 'Store', 'icon': 'assets/images/storeicon.png'},
+    ];
+
+    return Container(
+      width: 310,
+      height: 77,
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A2A2A).withOpacity(0.6),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(4),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final tabWidth = constraints.maxWidth / 4;
+
+          return Stack(
+            children: [
+              // Indicator for selected tab
+              Positioned(
+                left: selectedIndex * tabWidth,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: tabWidth,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.02),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.8),
+                      width: 2,
+                    ),
+                  ),
+                ),
+              ),
+              // Tab buttons
+              Row(
+                children: List.generate(tabs.length, (index) {
+                  final isSelected = selectedIndex == index;
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticFeedback.mediumImpact();
+                        _onTabSelected(index);
+                      },
+                      behavior: HitTestBehavior.opaque,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Opacity(
+                            opacity: isSelected ? 1.0 : 0.85,
+                            child: Image.asset(
+                              tabs[index]['icon']!,
+                              width: 30,
+                              height: 30,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            tabs[index]['label']!,
+                            style: TextStyle(
+                              fontFamily: 'SpaceMono',
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                              color: isSelected ? Colors.white : const Color(0xFFB0B0B0),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _onTabSelected(int index) {
+    Widget targetView;
+    switch (index) {
+      case 0:
+        return; // Already on Colors tab
+      case 1:
+        targetView = WhitesTabView(
+          lightName: widget.lightName,
+          controllerTypeName: widget.controllerTypeName,
+          onColorSelected: widget.onColorSelected,
+          locationId: widget.locationId,
+          lightId: widget.lightId,
+          zoneId: widget.zoneId,
+          initialColor: _selectedColor,
+          initialIsOn: _isOn,
+          initialBrightness: _brightness,
+        );
+        break;
+      case 2:
+        targetView = EffectsTabView(
+          lightName: widget.lightName,
+          controllerTypeName: widget.controllerTypeName,
+          onColorSelected: widget.onColorSelected,
+          locationId: widget.locationId,
+          lightId: widget.lightId,
+          zoneId: widget.zoneId,
+          initialColor: _selectedColor,
+          initialIsOn: _isOn,
+          initialBrightness: _brightness,
+        );
+        break;
+      case 3:
+        targetView = StoreTabView(
+          lightName: widget.lightName,
+          controllerTypeName: widget.controllerTypeName,
+          onColorSelected: widget.onColorSelected,
+          locationId: widget.locationId,
+          lightId: widget.lightId,
+          zoneId: widget.zoneId,
+          initialColor: _selectedColor,
+          initialIsOn: _isOn,
+          initialBrightness: _brightness,
+        );
+        break;
+      default:
+        return;
+    }
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => targetView,
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
       ),
     );
   }

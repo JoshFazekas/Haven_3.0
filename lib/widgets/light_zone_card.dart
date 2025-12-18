@@ -86,7 +86,7 @@ class _LightZoneCardState extends State<LightZoneCard> {
                     HSLColor.fromColor(_selectedColor).lightness * 0.5
                   ).toColor()
                 : const Color(0xFF1D1D1D),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(20),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: Column(
