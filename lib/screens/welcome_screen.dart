@@ -59,6 +59,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   // Selected location state
   String _selectedLocation = 'Home';
 
+  // Global lights on/off state (null = no forced state, true = all on, false = all off)
+  bool? _forceAllLightsState;
+
   @override
   void initState() {
     super.initState();
@@ -474,7 +477,35 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                                 },
                               ),
                             ),
-                            DeviceControlCard(devices: _devices),
+                            DeviceControlCard(
+                              devices: _devices,
+                              onAllLightsOn: () {
+                                setState(() {
+                                  _forceAllLightsState = true;
+                                });
+                                // Reset after a short delay so future toggles work
+                                Future.delayed(const Duration(milliseconds: 100), () {
+                                  if (mounted) {
+                                    setState(() {
+                                      _forceAllLightsState = null;
+                                    });
+                                  }
+                                });
+                              },
+                              onAllLightsOff: () {
+                                setState(() {
+                                  _forceAllLightsState = false;
+                                });
+                                // Reset after a short delay so future toggles work
+                                Future.delayed(const Duration(milliseconds: 100), () {
+                                  if (mounted) {
+                                    setState(() {
+                                      _forceAllLightsState = null;
+                                    });
+                                  }
+                                });
+                              },
+                            ),
                             const SizedBox(height: 12),
                           ],
                         ),
@@ -631,6 +662,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   lightId: 100 + i, // Example light ID
                   locationId: 27040, // Example location ID
                   // zoneId: null, // Add zone ID if available
+                  forceIsOn: _forceAllLightsState,
                 ),
               ),
             );

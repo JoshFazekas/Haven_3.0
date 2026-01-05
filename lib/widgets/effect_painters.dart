@@ -90,8 +90,8 @@ class Wave3EffectPainter extends CustomPainter {
     const int points = 100;
     final dx = size.width / points;
 
-    // Amplitude is capped by the opacity parameter (40%)
-    final effectiveAmplitude = (size.height * 0.3) * amplitude * opacity;
+    // Amplitude - adjusted for balanced wave height
+    final effectiveAmplitude = (size.height * 0.4) * amplitude * opacity;
     final centerY = size.height * 0.5;
 
     // Start the path

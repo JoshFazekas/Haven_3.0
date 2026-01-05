@@ -43,8 +43,15 @@ class DeviceController {
 /// A control card for managing all lights in a zone
 class DeviceControlCard extends StatefulWidget {
   final List<DeviceController> devices;
+  final VoidCallback? onAllLightsOn;
+  final VoidCallback? onAllLightsOff;
 
-  const DeviceControlCard({super.key, required this.devices});
+  const DeviceControlCard({
+    super.key,
+    required this.devices,
+    this.onAllLightsOn,
+    this.onAllLightsOff,
+  });
 
   @override
   State<DeviceControlCard> createState() => _DeviceControlCardState();
@@ -84,12 +91,12 @@ class _DeviceControlCardState extends State<DeviceControlCard> {
                   children: [
                     Expanded(
                       flex: 1,
-                      child: _buildButton('ON', isOn: true),
+                      child: _buildButton('OFF', isOn: false),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       flex: 1,
-                      child: _buildButton('OFF', isOn: false),
+                      child: _buildButton('ON', isOn: true),
                     ),
                     const Spacer(flex: 2),
                   ],
@@ -146,7 +153,12 @@ class _DeviceControlCardState extends State<DeviceControlCard> {
     return GestureDetector(
       onTap: () {
         HapticFeedback.mediumImpact();
-        debugPrint('$label tapped');
+        if (isOn) {
+          widget.onAllLightsOn?.call();
+        } else {
+          widget.onAllLightsOff?.call();
+        }
+        debugPrint('$label tapped - turning all lights ${isOn ? "ON" : "OFF"}');
       },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 9),

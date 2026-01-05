@@ -11,6 +11,7 @@ class LightZoneCard extends StatefulWidget {
   final int? lightId;
   final int? zoneId;
   final int? locationId;
+  final bool? forceIsOn; // External control for on/off state
 
   const LightZoneCard({
     super.key,
@@ -20,6 +21,7 @@ class LightZoneCard extends StatefulWidget {
     this.lightId,
     this.zoneId,
     this.locationId,
+    this.forceIsOn,
   });
 
   @override
@@ -57,6 +59,17 @@ class _LightZoneCardState extends State<LightZoneCard>
       vsync: this,
       duration: const Duration(seconds: 4),
     );
+  }
+
+  @override
+  void didUpdateWidget(LightZoneCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Handle external force on/off state changes
+    if (widget.forceIsOn != null && widget.forceIsOn != oldWidget.forceIsOn) {
+      setState(() {
+        _isOn = widget.forceIsOn!;
+      });
+    }
   }
 
   @override
