@@ -36,6 +36,7 @@ class _WhitesTabViewState extends State<WhitesTabView> {
   late Color _selectedColor;
   late bool _isOn;
   late double _brightness;
+  int _selectedTabIndex = 1; // Whites tab is index 1
 
   final Map<String, Color> _whiteTemperatures = {
     '2700K': const Color(0xFFF8E96C),
@@ -108,7 +109,10 @@ class _WhitesTabViewState extends State<WhitesTabView> {
                 padding: const EdgeInsets.only(left: 6, right: 6, bottom: 0),
                 child: GridView.builder(
                   clipBehavior: Clip.none,
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 0,
+                  ),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 5,
                     crossAxisSpacing: 6,
@@ -142,7 +146,9 @@ class _WhitesTabViewState extends State<WhitesTabView> {
                             _isOn = true;
                           }
                         });
-                        debugPrint('White temperature selected: $tempName - $color');
+                        debugPrint(
+                          'White temperature selected: $tempName - $color',
+                        );
                       },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 300),
@@ -208,10 +214,7 @@ class _WhitesTabViewState extends State<WhitesTabView> {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: _selectedColor.withOpacity(0.4),
-            width: 4,
-          ),
+          border: Border.all(color: _selectedColor.withOpacity(0.4), width: 4),
         ),
         child: Container(
           width: double.infinity,
@@ -350,7 +353,6 @@ class _WhitesTabViewState extends State<WhitesTabView> {
   }
 
   Widget _buildTabSelector() {
-    const int selectedIndex = 1; // Whites tab
     const List<Map<String, String>> tabs = [
       {'label': 'Colors', 'icon': 'assets/images/colorsicon.png'},
       {'label': 'Whites', 'icon': 'assets/images/whitesicon.png'},
@@ -380,9 +382,11 @@ class _WhitesTabViewState extends State<WhitesTabView> {
 
           return Stack(
             children: [
-              // Indicator for selected tab
-              Positioned(
-                left: selectedIndex * tabWidth,
+              // Animated sliding indicator for selected tab
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                left: _selectedTabIndex * tabWidth,
                 top: 0,
                 bottom: 0,
                 child: Container(
@@ -394,13 +398,33 @@ class _WhitesTabViewState extends State<WhitesTabView> {
                       color: Colors.white.withOpacity(0.8),
                       width: 2,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 12,
+                        spreadRadius: 0,
+                        offset: const Offset(0, 4),
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.3),
+                        blurRadius: 8,
+                        spreadRadius: -1,
+                        offset: const Offset(0, -2),
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.15),
+                        blurRadius: 14,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 0),
+                      ),
+                    ],
                   ),
                 ),
               ),
               // Tab buttons
               Row(
                 children: List.generate(tabs.length, (index) {
-                  final isSelected = selectedIndex == index;
+                  final isSelected = _selectedTabIndex == index;
                   return Expanded(
                     child: GestureDetector(
                       onTap: () {
@@ -426,8 +450,12 @@ class _WhitesTabViewState extends State<WhitesTabView> {
                             style: TextStyle(
                               fontFamily: 'SpaceMono',
                               fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
-                              color: isSelected ? Colors.white : const Color(0xFFB0B0B0),
+                              fontWeight: isSelected
+                                  ? FontWeight.w900
+                                  : FontWeight.w700,
+                              color: isSelected
+                                  ? Colors.white
+                                  : const Color(0xFFB0B0B0),
                             ),
                           ),
                         ],
@@ -444,6 +472,14 @@ class _WhitesTabViewState extends State<WhitesTabView> {
   }
 
   void _onTabSelected(int index) {
+    if (index == 1) return; // Already on Whites tab
+
+    // Animate the indicator and navigate immediately (async)
+    setState(() {
+      _selectedTabIndex = index;
+    });
+
+    // Navigate immediately - don't wait for animation
     Widget targetView;
     switch (index) {
       case 0:
@@ -459,8 +495,6 @@ class _WhitesTabViewState extends State<WhitesTabView> {
           initialBrightness: _brightness,
         );
         break;
-      case 1:
-        return; // Already on Whites tab
       case 2:
         targetView = EffectsTabView(
           lightName: widget.lightName,

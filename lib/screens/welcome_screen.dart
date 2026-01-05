@@ -56,6 +56,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   // Devices list parsed from API response
   List<DeviceController> _devices = [];
 
+  // Selected location state
+  String _selectedLocation = 'Home';
+
   @override
   void initState() {
     super.initState();
@@ -74,7 +77,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     _lightsLoadInController = AnimationController(vsync: this);
     _scheduleLoadInController = AnimationController(vsync: this);
     _scenesLoadInController = AnimationController(vsync: this);
-    
+
     // Reset _hasLoadedDevices after load-in animations complete
     _lightsLoadInController!.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
@@ -109,13 +112,17 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 
   void _dismissNearbyDevicePopup() {
+    if (!mounted) return;
+
     setState(() {
       _showNearbyDevicePopup = false;
       _nearbyDevice = null;
     });
     // Reset the flag after a delay so we can detect new devices
     Future.delayed(const Duration(seconds: 10), () {
-      _bluetoothService.resetPopupFlag();
+      if (mounted) {
+        _bluetoothService.resetPopupFlag();
+      }
     });
   }
 
@@ -126,6 +133,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 
   Future<void> _fetchDevicesByLocation() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoadingDebug = true;
       _debugError = null;
@@ -145,6 +154,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             .toList();
       }
 
+      if (!mounted) return;
+
       setState(() {
         _debugResponse = response;
         _devices = parsedDevices;
@@ -157,6 +168,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       debugPrint('Devices response: $response');
       debugPrint('Parsed ${parsedDevices.length} devices');
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
         _debugError = e.toString();
         _devices = [];
@@ -259,7 +272,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 
   void _onVerticalDragUpdate(DragUpdateDetails details) {
-    if (_isRefreshing) return;
+    if (_isRefreshing || !mounted) return;
 
     setState(() {
       _pullDistance += details.delta.dy;
@@ -270,29 +283,30 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 
   Future<void> _onVerticalDragEnd(DragEndDetails details) async {
-    if (_isRefreshing) return;
+    if (_isRefreshing || !mounted) return;
 
     if (_pullDistance >= _triggerDistance) {
       // Trigger refresh
+      if (!mounted) return;
       setState(() {
         _isRefreshing = true;
         _opacity = 1.0;
       });
 
-      // Play the animation once from the beginning
+      // Play the animation and fetch data in parallel (not waiting for animation)
       _lottieController?.reset();
-      await _lottieController?.forward();
+      _lottieController?.forward();
 
-      // Fetch devices on refresh
-      await _fetchDevicesByLocation();
-      debugPrint('Refreshed!');
-
-      if (mounted) {
-        // Fade out the animation
-        _fadeController?.reset();
-        _fadeController?.forward();
-        _fadeController?.addListener(_fadeOutListener);
-      }
+      // Fetch devices asynchronously without awaiting
+      _fetchDevicesByLocation().then((_) {
+        debugPrint('Refreshed!');
+        if (mounted) {
+          // Fade out the animation after data is loaded
+          _fadeController?.reset();
+          _fadeController?.forward();
+          _fadeController?.addListener(_fadeOutListener);
+        }
+      });
     } else {
       // Not enough pull, snap back
       _snapBack();
@@ -342,8 +356,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
       if (_pullController!.isCompleted) {
         _pullController!.removeListener(listener);
-        _pullDistance = 0;
-        _opacity = 0;
+        if (mounted) {
+          setState(() {
+            _pullDistance = 0;
+            _opacity = 0;
+          });
+        }
       }
     }
 
@@ -354,9 +372,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _devices.isNotEmpty
-          ? const Color(0xFF2A2A2A)
-          : null,
+      backgroundColor: _devices.isNotEmpty ? const Color(0xFF2A2A2A) : null,
       body: Stack(
         children: [
           // Background image for empty state (only show when no devices)
@@ -381,44 +397,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               child: Container(color: Colors.transparent),
             ),
           ),
-          // Shooting star animation that pulls down from behind header
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 70,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: ClipRect(
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: Transform.translate(
-                  offset: Offset(0, _pullDistance - 80),
-                  child: Opacity(
-                    opacity: _opacity,
-                    child: Transform.rotate(
-                      angle: 3.926991, // 225 degrees in radians (45 + 180)
-                      child: Lottie.asset(
-                        'assets/animations/shootingstar.json',
-                        controller: _lottieController,
-                        width: 80,
-                        height: 80,
-                        onLoaded: (composition) {
-                          _lottieController?.duration = composition.duration;
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
           // Main content - on top so button is clickable
           Column(
             children: [
               // Header ribbon - extends to top of screen
               Container(
-                color: _devices.isNotEmpty
-                    ? const Color(0xFF1C1C1C)
-                    : null,
+                color: _devices.isNotEmpty ? const Color(0xFF1C1C1C) : null,
                 child: SafeArea(
                   bottom: false,
                   child: Padding(
@@ -427,10 +411,16 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       vertical: 16.0,
                     ),
                     child: LocationHeader(
-                      locationName: 'Home',
+                      locationName: _selectedLocation,
                       onLocationTap: () {
-                        // TODO: Show location picker
+                        // Location dropdown handled by LocationHeader
                         debugPrint('Location tapped');
+                      },
+                      onLocationSelected: (String location) {
+                        setState(() {
+                          _selectedLocation = location;
+                        });
+                        debugPrint('Location selected: $location');
                       },
                     ),
                   ),
@@ -484,16 +474,44 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                                 },
                               ),
                             ),
-                            DeviceControlCard(
-                              devices: _devices,
-                            ),
+                            DeviceControlCard(devices: _devices),
                             const SizedBox(height: 12),
                           ],
                         ),
                 ),
               ),
-              ],
+            ],
+          ),
+
+          // Shooting star animation that pulls down - on top of content
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 70,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Transform.translate(
+                  offset: Offset(0, _pullDistance - 80),
+                  child: Opacity(
+                    opacity: _opacity,
+                    child: Transform.rotate(
+                      angle: 3.926991, // 225 degrees in radians (45 + 180)
+                      child: Lottie.asset(
+                        'assets/animations/shootingstar.json',
+                        controller: _lottieController,
+                        width: 80,
+                        height: 80,
+                        onLoaded: (composition) {
+                          _lottieController?.duration = composition.duration;
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
+          ),
 
           // Nearby device popup overlay
           if (_showNearbyDevicePopup && _nearbyDevice != null)
@@ -503,30 +521,30 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               onConnect: _onConnectToDevice,
             ),
 
-          // Debug button - shows API response
-          Positioned(
-            bottom: 100,
-            right: 20,
-            child: FloatingActionButton.small(
-              heroTag: 'debug_button',
-              backgroundColor: _debugResponse != null
-                  ? Colors.greenAccent.withOpacity(0.8)
-                  : _debugError != null
-                  ? Colors.redAccent.withOpacity(0.8)
-                  : Colors.grey.withOpacity(0.5),
-              onPressed: _showDebugDialog,
-              child: _isLoadingDebug
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.bug_report, color: Colors.white, size: 20),
-            ),
-          ),
+          // Debug button - shows API response (hidden)
+          // Positioned(
+          //   bottom: 100,
+          //   right: 20,
+          //   child: FloatingActionButton.small(
+          //     heroTag: 'debug_button',
+          //     backgroundColor: _debugResponse != null
+          //         ? Colors.greenAccent.withOpacity(0.8)
+          //         : _debugError != null
+          //         ? Colors.redAccent.withOpacity(0.8)
+          //         : Colors.grey.withOpacity(0.5),
+          //     onPressed: _showDebugDialog,
+          //     child: _isLoadingDebug
+          //         ? const SizedBox(
+          //             width: 20,
+          //             height: 20,
+          //             child: CircularProgressIndicator(
+          //               strokeWidth: 2,
+          //               color: Colors.white,
+          //             ),
+          //           )
+          //         : const Icon(Icons.bug_report, color: Colors.white, size: 20),
+          //   ),
+          // ),
         ],
       ),
       bottomNavigationBar: _devices.isEmpty
@@ -536,14 +554,18 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               child: SafeArea(
                 top: false,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 46.0),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12.0,
+                    horizontal: 46.0,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _buildAnimatedTabItem(
                         index: 0,
                         animationPath: 'assets/animations/lighttabtap.json',
-                        loadInAnimationPath: 'assets/animations/loadinlighttab.json',
+                        loadInAnimationPath:
+                            'assets/animations/loadinlighttab.json',
                         staticAssetPath: 'assets/images/lighttab.png',
                         controller: _lightsTabAnimController,
                         loadInController: _lightsLoadInController,
@@ -552,7 +574,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       _buildAnimatedTabItem(
                         index: 1,
                         animationPath: 'assets/animations/scenetap.json',
-                        loadInAnimationPath: 'assets/animations/scenereveal.json',
+                        loadInAnimationPath:
+                            'assets/animations/scenereveal.json',
                         staticAssetPath: 'assets/images/scenestab.png',
                         controller: _scenesTabAnimController,
                         loadInController: _scenesLoadInController,
@@ -562,7 +585,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       _buildAnimatedTabItem(
                         index: 2,
                         animationPath: 'assets/animations/scheduletab.json',
-                        loadInAnimationPath: 'assets/animations/loadinschedule.json',
+                        loadInAnimationPath:
+                            'assets/animations/loadinschedule.json',
                         staticAssetPath: 'assets/images/scheduletap.png',
                         controller: _scheduleTabAnimController,
                         loadInController: _scheduleLoadInController,
@@ -579,19 +603,19 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   /// Builds individual light/zone cards from all devices
   List<Widget> _buildLightZoneCards() {
     final List<Widget> cards = [];
-    
+
     debugPrint('=== Building light zone cards ===');
     debugPrint('Total devices: ${_devices.length}');
-    
+
     for (int deviceIndex = 0; deviceIndex < _devices.length; deviceIndex++) {
       final device = _devices[deviceIndex];
       debugPrint('Device $deviceIndex: ${device.controllerTypeName}');
       debugPrint('Light names: "${device.lightNames}"');
-      
+
       if (device.lightNames.isNotEmpty) {
         final lights = device.lightNames.split(',');
         debugPrint('Split into ${lights.length} lights: $lights');
-        
+
         for (int i = 0; i < lights.length; i++) {
           final lightName = lights[i].trim();
           if (lightName.isNotEmpty) {
@@ -616,7 +640,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         debugPrint('Device has no light names');
       }
     }
-    
+
     debugPrint('Total cards created: ${cards.length}');
     debugPrint('=== End building light zone cards ===');
     return cards;
@@ -634,8 +658,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     double iconScale = 1.0,
   }) {
     final isSelected = _selectedTabIndex == index;
-    final shouldPlayLoadIn = _hasLoadedDevices && loadInAnimationPath != null && loadInController != null;
-    
+    final shouldPlayLoadIn =
+        _hasLoadedDevices &&
+        isSelected &&
+        loadInAnimationPath != null &&
+        loadInController != null;
+
     return GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();
@@ -654,32 +682,32 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             child: Transform.scale(
               scale: iconScale,
               child: shouldPlayLoadIn
-                ? Lottie.asset(
-                    loadInAnimationPath,
-                    controller: loadInController,
-                    repeat: false,
-                    onLoaded: (composition) {
-                      loadInController.duration = composition.duration;
-                      loadInController.reset();
-                      loadInController.forward();
-                    },
-                  )
-                : isSelected
-                    ? Lottie.asset(
-                        animationPath,
-                        controller: controller,
-                        repeat: false,
-                        onLoaded: (composition) {
-                          controller?.duration = composition.duration;
-                          // Play the animation once when loaded
-                          controller?.reset();
-                          controller?.forward();
-                        },
-                      )
-                    : Image.asset(
-                        staticAssetPath,
-                        color: const Color(0xFF6E6E6E),
-                      ),
+                  ? Lottie.asset(
+                      loadInAnimationPath,
+                      controller: loadInController,
+                      repeat: false,
+                      onLoaded: (composition) {
+                        loadInController.duration = composition.duration;
+                        loadInController.reset();
+                        loadInController.forward();
+                      },
+                    )
+                  : isSelected
+                  ? Lottie.asset(
+                      animationPath,
+                      controller: controller,
+                      repeat: false,
+                      onLoaded: (composition) {
+                        controller?.duration = composition.duration;
+                        // Play the animation once when loaded
+                        controller?.reset();
+                        controller?.forward();
+                      },
+                    )
+                  : Image.asset(
+                      staticAssetPath,
+                      color: const Color(0xFF6E6E6E),
+                    ),
             ),
           ),
           const SizedBox(height: 4),

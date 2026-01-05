@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-class AnimatedTabSelector extends StatelessWidget {
+class AnimatedTabSelector extends StatefulWidget {
   final int selectedIndex;
   final Function(int index) onTabSelected;
   final String lightName;
@@ -23,13 +23,18 @@ class AnimatedTabSelector extends StatelessWidget {
     this.zoneId,
   });
 
-  static const List<Map<String, String>> _tabs = [
+  static const List<Map<String, String>> tabs = [
     {'label': 'Colors', 'icon': 'assets/images/colorsicon.png'},
     {'label': 'Whites', 'icon': 'assets/images/whitesicon.png'},
     {'label': 'Effects', 'icon': 'assets/images/effectsicon.png'},
     {'label': 'Store', 'icon': 'assets/images/storeicon.png'},
   ];
 
+  @override
+  State<AnimatedTabSelector> createState() => _AnimatedTabSelectorState();
+}
+
+class _AnimatedTabSelectorState extends State<AnimatedTabSelector> {
   @override
   Widget build(BuildContext context) {
     const double containerWidth = 310;
@@ -59,12 +64,16 @@ class AnimatedTabSelector extends StatelessWidget {
 
           return Stack(
             children: [
-              // Static indicator for selected tab
-              Positioned(
-                left: selectedIndex * tabWidth,
+              // Animated sliding indicator for selected tab
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                left: widget.selectedIndex * tabWidth,
                 top: 0,
                 bottom: 0,
-                child: Container(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
                   width: tabWidth,
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.02),
@@ -99,10 +108,10 @@ class AnimatedTabSelector extends StatelessWidget {
               // Tab buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.start,
-                children: List.generate(_tabs.length, (index) {
-                  return Expanded(
-                    child: _buildTabButton(index),
-                  );
+                children: List.generate(AnimatedTabSelector.tabs.length, (
+                  index,
+                ) {
+                  return Expanded(child: _buildTabButton(index));
                 }),
               ),
             ],
@@ -113,14 +122,14 @@ class AnimatedTabSelector extends StatelessWidget {
   }
 
   Widget _buildTabButton(int index) {
-    final isSelected = selectedIndex == index;
-    final label = _tabs[index]['label']!;
-    final iconPath = _tabs[index]['icon']!;
+    final isSelected = widget.selectedIndex == index;
+    final label = AnimatedTabSelector.tabs[index]['label']!;
+    final iconPath = AnimatedTabSelector.tabs[index]['icon']!;
 
     return GestureDetector(
       onTap: () {
         HapticFeedback.mediumImpact();
-        onTabSelected(index);
+        widget.onTabSelected(index);
       },
       behavior: HitTestBehavior.opaque,
       child: Container(
@@ -129,7 +138,8 @@ class AnimatedTabSelector extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Opacity(
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
               opacity: isSelected ? 1.0 : 0.85,
               child: Image.asset(
                 iconPath,
@@ -139,15 +149,18 @@ class AnimatedTabSelector extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 7),
-            Text(
-              label,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
               style: TextStyle(
                 fontFamily: 'SpaceMono',
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
                 color: isSelected ? Colors.white : const Color(0xFFB0B0B0),
+              ),
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
               ),
             ),
           ],

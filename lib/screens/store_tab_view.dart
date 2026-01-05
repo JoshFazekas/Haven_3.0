@@ -36,6 +36,7 @@ class _StoreTabViewState extends State<StoreTabView> {
   late Color _selectedColor;
   late bool _isOn;
   late double _brightness;
+  int _selectedTabIndex = 3; // Store tab is index 3
 
   @override
   void initState() {
@@ -147,9 +148,7 @@ class _StoreTabViewState extends State<StoreTabView> {
                       ? const Color(0xFF212121)
                       : HSLColor.fromColor(_selectedColor)
                             .withLightness(
-                              (HSLColor.fromColor(
-                                        _selectedColor,
-                                      ).lightness *
+                              (HSLColor.fromColor(_selectedColor).lightness *
                                       0.15) +
                                   (HSLColor.fromColor(
                                         _selectedColor,
@@ -213,9 +212,7 @@ class _StoreTabViewState extends State<StoreTabView> {
                       activeTrackColor: _isOn
                           ? HSLColor.fromColor(_selectedColor)
                                 .withLightness(
-                                  HSLColor.fromColor(
-                                        _selectedColor,
-                                      ).lightness *
+                                  HSLColor.fromColor(_selectedColor).lightness *
                                       0.3,
                                 )
                                 .toColor()
@@ -273,7 +270,6 @@ class _StoreTabViewState extends State<StoreTabView> {
   }
 
   Widget _buildTabSelector() {
-    const int selectedIndex = 3; // Store tab
     const List<Map<String, String>> tabs = [
       {'label': 'Colors', 'icon': 'assets/images/colorsicon.png'},
       {'label': 'Whites', 'icon': 'assets/images/whitesicon.png'},
@@ -303,9 +299,11 @@ class _StoreTabViewState extends State<StoreTabView> {
 
           return Stack(
             children: [
-              // Indicator for selected tab
-              Positioned(
-                left: selectedIndex * tabWidth,
+              // Animated sliding indicator for selected tab
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                left: _selectedTabIndex * tabWidth,
                 top: 0,
                 bottom: 0,
                 child: Container(
@@ -317,13 +315,33 @@ class _StoreTabViewState extends State<StoreTabView> {
                       color: Colors.white.withOpacity(0.8),
                       width: 2,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 12,
+                        spreadRadius: 0,
+                        offset: const Offset(0, 4),
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.3),
+                        blurRadius: 8,
+                        spreadRadius: -1,
+                        offset: const Offset(0, -2),
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.15),
+                        blurRadius: 14,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 0),
+                      ),
+                    ],
                   ),
                 ),
               ),
               // Tab buttons
               Row(
                 children: List.generate(tabs.length, (index) {
-                  final isSelected = selectedIndex == index;
+                  final isSelected = _selectedTabIndex == index;
                   return Expanded(
                     child: GestureDetector(
                       onTap: () {
@@ -349,8 +367,12 @@ class _StoreTabViewState extends State<StoreTabView> {
                             style: TextStyle(
                               fontFamily: 'SpaceMono',
                               fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
-                              color: isSelected ? Colors.white : const Color(0xFFB0B0B0),
+                              fontWeight: isSelected
+                                  ? FontWeight.w900
+                                  : FontWeight.w700,
+                              color: isSelected
+                                  ? Colors.white
+                                  : const Color(0xFFB0B0B0),
                             ),
                           ),
                         ],
@@ -367,6 +389,14 @@ class _StoreTabViewState extends State<StoreTabView> {
   }
 
   void _onTabSelected(int index) {
+    if (index == 3) return; // Already on Store tab
+
+    // Animate the indicator and navigate immediately (async)
+    setState(() {
+      _selectedTabIndex = index;
+    });
+
+    // Navigate immediately - don't wait for animation
     Widget targetView;
     switch (index) {
       case 0:
@@ -408,8 +438,6 @@ class _StoreTabViewState extends State<StoreTabView> {
           initialBrightness: _brightness,
         );
         break;
-      case 3:
-        return; // Already on Store tab
       default:
         return;
     }

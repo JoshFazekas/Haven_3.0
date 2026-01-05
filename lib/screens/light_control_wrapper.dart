@@ -1,0 +1,2144 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../widgets/effect_painters.dart';
+
+class LightControlWrapper extends StatefulWidget {
+  final String lightName;
+  final String? controllerTypeName;
+  final Function(
+    Color color,
+    bool isOn,
+    double brightness,
+    Map<String, dynamic>? effectConfig,
+  )?
+  onColorSelected;
+  final int? locationId;
+  final int? lightId;
+  final int? zoneId;
+  final Color? initialColor;
+  final bool? initialIsOn;
+  final double? initialBrightness;
+  final int initialTabIndex;
+  final Map<String, dynamic>? initialEffectConfig;
+
+  const LightControlWrapper({
+    super.key,
+    required this.lightName,
+    this.controllerTypeName,
+    this.onColorSelected,
+    this.locationId,
+    this.lightId,
+    this.zoneId,
+    this.initialColor,
+    this.initialIsOn,
+    this.initialBrightness,
+    this.initialTabIndex = 0,
+    this.initialEffectConfig,
+  });
+
+  @override
+  State<LightControlWrapper> createState() => _LightControlWrapperState();
+}
+
+class _LightControlWrapperState extends State<LightControlWrapper>
+    with TickerProviderStateMixin {
+  late int _selectedTabIndex;
+  late Color _selectedColor;
+  late bool _isOn;
+  late double _brightness;
+  bool _showBrightnessIndicator = false;
+  Timer? _fadeTimer;
+  AnimationController? _sliderFadeController;
+  Animation<Color?>? _sliderColorAnimation;
+
+  // Effect playing state
+  Map<String, dynamic>? _playingEffectConfig;
+  AnimationController? _effectAnimationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTabIndex = widget.initialTabIndex;
+    _selectedColor = widget.initialColor ?? Colors.orange;
+    _isOn = widget.initialIsOn ?? false;
+    _brightness = widget.initialBrightness ?? 100.0;
+    _playingEffectConfig = widget.initialEffectConfig;
+
+    _sliderFadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _sliderColorAnimation =
+        ColorTween(begin: Colors.white, end: const Color(0xFFB0B0B0)).animate(
+          CurvedAnimation(
+            parent: _sliderFadeController!,
+            curve: Curves.easeInOut,
+          ),
+        );
+
+    _effectAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    );
+
+    // If there's an initial effect config, start the animation
+    if (_playingEffectConfig != null) {
+      _effectAnimationController?.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _fadeTimer?.cancel();
+    _sliderFadeController?.dispose();
+    _effectAnimationController?.dispose();
+    super.dispose();
+  }
+
+  void _onEffectStarted(Map<String, dynamic> effectConfig) {
+    setState(() {
+      _playingEffectConfig = effectConfig;
+      _isOn = true;
+    });
+    _effectAnimationController?.repeat();
+  }
+
+  void _onEffectStopped() {
+    setState(() {
+      _playingEffectConfig = null;
+      // Default to warm white (2700K) when effect is stopped
+      _selectedColor = const Color(0xFFF8E96C);
+    });
+    _effectAnimationController?.stop();
+    _effectAnimationController?.reset();
+  }
+
+  void _onTabSelected(int index) {
+    if (index == _selectedTabIndex) return;
+
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _selectedTabIndex = index;
+    });
+  }
+
+  void _onColorChanged(Color color) {
+    setState(() {
+      _selectedColor = color;
+      // Stop any playing effect when a color is selected
+      if (_playingEffectConfig != null) {
+        _playingEffectConfig = null;
+        _effectAnimationController?.stop();
+        _effectAnimationController?.reset();
+      }
+    });
+  }
+
+  void _onIsOnChanged(bool isOn) {
+    setState(() {
+      _isOn = isOn;
+    });
+  }
+
+  void _onBrightnessChanged(double brightness) {
+    setState(() {
+      _brightness = brightness;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      backgroundColor: const Color(0xFF1C1C1C),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1C1C1C),
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        leading: _selectedTabIndex == 2
+            ? Padding(
+                padding: const EdgeInsets.only(left: 16),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.95, end: 1.05),
+                  duration: const Duration(milliseconds: 750),
+                  curve: Curves.easeInOut,
+                  builder: (context, scale, child) {
+                    return Transform.scale(
+                      scale: scale,
+                      child: GestureDetector(
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          debugPrint('Add effect button tapped');
+                        },
+                        child: Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFC56A21),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.add,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  onEnd: () {
+                    // Restart animation by rebuilding
+                    if (mounted && _selectedTabIndex == 2) {
+                      setState(() {});
+                    }
+                  },
+                ),
+              )
+            : null,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: GestureDetector(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                if (widget.onColorSelected != null) {
+                  widget.onColorSelected!(
+                    _selectedColor,
+                    _isOn,
+                    _brightness,
+                    _playingEffectConfig,
+                  );
+                }
+                Navigator.pop(context);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2A2A2A),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Done',
+                  style: TextStyle(
+                    fontFamily: 'SpaceMono',
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            // Content area - switches between tab content
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: _buildTabContent(),
+              ),
+            ),
+            // Floating tab selector - persists across all tabs
+            Padding(
+              padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _buildTabSelector(),
+              ),
+            ),
+            // Light card at the bottom
+            _buildLightCard(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabContent() {
+    switch (_selectedTabIndex) {
+      case 0:
+        return ColorsTabContent(
+          key: const ValueKey('colors'),
+          selectedColor: _selectedColor,
+          onColorChanged: _onColorChanged,
+          isOn: _isOn,
+          onIsOnChanged: _onIsOnChanged,
+          onBrightnessChanged: _onBrightnessChanged,
+          isEffectPlaying: _playingEffectConfig != null,
+        );
+      case 1:
+        return WhitesTabContent(
+          key: const ValueKey('whites'),
+          selectedColor: _selectedColor,
+          onColorChanged: _onColorChanged,
+          isOn: _isOn,
+          onIsOnChanged: _onIsOnChanged,
+          onBrightnessChanged: _onBrightnessChanged,
+          isEffectPlaying: _playingEffectConfig != null,
+        );
+      case 2:
+        return EffectsTabContent(
+          key: const ValueKey('effects'),
+          selectedColor: _selectedColor,
+          onColorChanged: _onColorChanged,
+          onEffectStarted: _onEffectStarted,
+          onEffectStopped: _onEffectStopped,
+          playingEffectConfig: _playingEffectConfig,
+        );
+      case 3:
+        return StoreTabContent(
+          key: const ValueKey('store'),
+          selectedColor: _selectedColor,
+          onColorChanged: _onColorChanged,
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  // White temperature color values to detect
+  static const Set<int> _whiteTemperatureValues = {
+    0xFFF8E96C,
+    0xFFF6F08E,
+    0xFFF4F4AC,
+    0xFFF2F4C2,
+    0xFFECF5DA,
+    0xFFE3F3E9,
+    0xFFDDF1F2,
+    0xFFD6EFF6,
+  };
+
+  bool _isWhiteTemperature(Color color) {
+    return _whiteTemperatureValues.contains(color.value);
+  }
+
+  Widget _buildLightCard() {
+    final isPlayingEffect = _playingEffectConfig != null;
+    final isWhite = _isWhiteTemperature(_selectedColor);
+
+    // Use different calculations for whites vs colors
+    final Color cardColor;
+    final Color borderColor;
+
+    if (isPlayingEffect) {
+      final effectType = _playingEffectConfig!['effectType'] as String?;
+
+      if (effectType == 'wave3') {
+        // Wave effect: use peak color for border
+        final waveConfig =
+            _playingEffectConfig!['waveConfig'] as Map<String, dynamic>;
+        final peakColor = waveConfig['peakColor'] as Color;
+        borderColor = peakColor.withOpacity(0.7);
+        // When off, use grey like other colors' off state
+        cardColor = _isOn ? const Color(0xFF1A1A1A) : const Color(0xFF1D1D1D);
+      } else if (effectType == 'comet') {
+        // Comet effect: use primary color (first color) for border, black background
+        final cometConfig =
+            _playingEffectConfig!['cometConfig'] as Map<String, dynamic>;
+        final colors = (cometConfig['colors'] as List).cast<Color>();
+        final primaryColor = colors.isNotEmpty ? colors[0] : Colors.purple;
+        borderColor = primaryColor.withOpacity(0.7);
+        // Black background for comet effect, grey when off
+        cardColor = _isOn ? const Color(0xFF000000) : const Color(0xFF1D1D1D);
+      } else if (effectType == 'usaFlag') {
+        // USA Flag effect: use blue for border (stars field color)
+        borderColor = const Color(0xFF3C3B6E).withOpacity(0.7);
+        // Black background for flag effect
+        cardColor = _isOn ? const Color(0xFF000000) : const Color(0xFF1D1D1D);
+      } else if (effectType == 'sparkle') {
+        // Sparkle effect: use sparkle color for border
+        final sparkleConfig =
+            _playingEffectConfig!['sparkleConfig'] as Map<String, dynamic>;
+        final sparkleColor = sparkleConfig['sparkleColor'] as Color;
+        borderColor = sparkleColor.withOpacity(0.7);
+        // Use background color from config
+        final bgColor = sparkleConfig['backgroundColor'] as Color;
+        cardColor = _isOn ? bgColor : const Color(0xFF1D1D1D);
+      } else {
+        // Default for other effect types
+        borderColor = Colors.white.withOpacity(0.3);
+        cardColor = _isOn ? const Color(0xFF1D1D1D) : const Color(0xFF1D1D1D);
+      }
+    } else if (isWhite) {
+      // For whites: use Color.lerp for better blending
+      cardColor = _isOn
+          ? (_brightness == 0
+                ? const Color(0xFF212121)
+                : Color.lerp(
+                    const Color(0xFF1D1D1D),
+                    _selectedColor,
+                    0.20 + (0.35 * (_brightness / 100)),
+                  )!)
+          : const Color(0xFF1D1D1D);
+      borderColor = Color.lerp(
+        const Color(0xFF1D1D1D),
+        _selectedColor,
+        0.5,
+      )!.withOpacity(0.7);
+    } else {
+      // For colors: use HSL for richer color display
+      cardColor = _isOn
+          ? (_brightness == 0
+                ? const Color(0xFF212121)
+                : HSLColor.fromColor(_selectedColor)
+                      .withLightness(
+                        (HSLColor.fromColor(_selectedColor).lightness * 0.18) +
+                            (HSLColor.fromColor(_selectedColor).lightness *
+                                0.45 *
+                                (_brightness / 100)),
+                      )
+                      .toColor())
+          : const Color(0xFF1D1D1D);
+      borderColor = HSLColor.fromColor(_selectedColor)
+          .withLightness(HSLColor.fromColor(_selectedColor).lightness * 0.4)
+          .toColor()
+          .withOpacity(0.7);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 9),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: borderColor, width: 4),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            width: double.infinity,
+            height: 115,
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Stack(
+              children: [
+                // Wave effect background when playing and light is on
+                if (isPlayingEffect &&
+                    _isOn &&
+                    _playingEffectConfig!['effectType'] == 'wave3' &&
+                    _effectAnimationController != null)
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _effectAnimationController!,
+                      builder: (context, child) {
+                        final waveConfig =
+                            _playingEffectConfig!['waveConfig']
+                                as Map<String, dynamic>;
+                        return CustomPaint(
+                          size: const Size(double.infinity, 115),
+                          painter: Wave3EffectPainter(
+                            animationValue: _effectAnimationController!.value,
+                            startColor: waveConfig['startColor'] as Color,
+                            peakColor: waveConfig['peakColor'] as Color,
+                            valleyColor: waveConfig['valleyColor'] as Color,
+                            waves: (waveConfig['waves'] as List)
+                                .cast<Map<String, dynamic>>(),
+                            opacity: waveConfig['opacity'] as double,
+                            isOn: _isOn,
+                            brightness: _brightness,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                // Comet effect background when playing and light is on
+                if (isPlayingEffect &&
+                    _isOn &&
+                    _playingEffectConfig!['effectType'] == 'comet' &&
+                    _effectAnimationController != null)
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _effectAnimationController!,
+                      builder: (context, child) {
+                        final cometConfig =
+                            _playingEffectConfig!['cometConfig']
+                                as Map<String, dynamic>;
+                        return CustomPaint(
+                          size: const Size(double.infinity, 115),
+                          painter: CometEffectPainter(
+                            animationValue: _effectAnimationController!.value,
+                            colors: (cometConfig['colors'] as List)
+                                .cast<Color>(),
+                            cometCount: cometConfig['cometCount'] as int,
+                            tailLength: cometConfig['tailLength'] as double,
+                            minSpeed: cometConfig['minSpeed'] as double,
+                            maxSpeed: cometConfig['maxSpeed'] as double,
+                            isOn: _isOn,
+                            brightness: _brightness,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                // USA Flag effect background when playing and light is on
+                if (isPlayingEffect &&
+                    _isOn &&
+                    _playingEffectConfig!['effectType'] == 'usaFlag' &&
+                    _effectAnimationController != null)
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _effectAnimationController!,
+                      builder: (context, child) {
+                        return CustomPaint(
+                          size: const Size(double.infinity, 115),
+                          painter: USAFlagEffectPainter(
+                            animationValue: _effectAnimationController!.value,
+                            isOn: _isOn,
+                            brightness: _brightness,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                // Sparkle effect background when playing and light is on
+                if (isPlayingEffect &&
+                    _isOn &&
+                    _playingEffectConfig!['effectType'] == 'sparkle' &&
+                    _effectAnimationController != null)
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _effectAnimationController!,
+                      builder: (context, child) {
+                        final sparkleConfig =
+                            _playingEffectConfig!['sparkleConfig']
+                                as Map<String, dynamic>;
+                        return CustomPaint(
+                          size: const Size(double.infinity, 115),
+                          painter: SparkleEffectPainter(
+                            animationValue: _effectAnimationController!.value,
+                            backgroundColor:
+                                sparkleConfig['backgroundColor'] as Color,
+                            sparkleColor:
+                                sparkleConfig['sparkleColor'] as Color,
+                            sparkleCount: sparkleConfig['sparkleCount'] as int,
+                            minSize: sparkleConfig['minSize'] as double,
+                            maxSize: sparkleConfig['maxSize'] as double,
+                            twinkleSpeed:
+                                sparkleConfig['twinkleSpeed'] as double,
+                            isOn: _isOn,
+                            brightness: _brightness,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                // Content overlay
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              widget.lightName,
+                              style: const TextStyle(
+                                fontFamily: 'SpaceMono',
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          if (widget.controllerTypeName != null &&
+                              widget.controllerTypeName!.isNotEmpty)
+                            Text(
+                              widget.controllerTypeName!,
+                              style: const TextStyle(
+                                fontFamily: 'SpaceMono',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w400,
+                                color: Colors.white,
+                              ),
+                            ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Transform.scale(
+                            scale: 1.15,
+                            alignment: Alignment.centerLeft,
+                            child: Switch(
+                              value: _isOn,
+                              onChanged: (value) {
+                                HapticFeedback.mediumImpact();
+                                if (value && _brightness == 0) {
+                                  // If turning on with brightness at 0, set to 100
+                                  setState(() {
+                                    _brightness = 100.0;
+                                  });
+                                }
+                                _onIsOnChanged(value);
+                              },
+                              activeColor: Colors.white,
+                              activeTrackColor: _isOn
+                                  ? (isPlayingEffect
+                                        ? Colors.white.withOpacity(0.3)
+                                        : (isWhite
+                                              ? Color.lerp(
+                                                  const Color(0xFF2A2A2A),
+                                                  _selectedColor,
+                                                  0.3,
+                                                )
+                                              : HSLColor.fromColor(
+                                                      _selectedColor,
+                                                    )
+                                                    .withLightness(
+                                                      HSLColor.fromColor(
+                                                            _selectedColor,
+                                                          ).lightness *
+                                                          0.3,
+                                                    )
+                                                    .toColor()))
+                                  : null,
+                              inactiveThumbColor: Colors.grey,
+                              inactiveTrackColor: const Color(0xFF3A3A3A),
+                            ),
+                          ),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              HapticFeedback.mediumImpact();
+                              debugPrint('Menu tapped for ${widget.lightName}');
+                            },
+                            child: const Icon(
+                              Icons.more_vert,
+                              color: Colors.white,
+                              size: 32,
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Bottom row: Brightness slider with indicator
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: AnimatedBuilder(
+                                  animation:
+                                      _sliderFadeController ??
+                                      AnimationController(vsync: this),
+                                  builder: (context, child) {
+                                    final sliderColor = _showBrightnessIndicator
+                                        ? Colors.white
+                                        : (_sliderColorAnimation?.value ??
+                                              const Color(0xFFB0B0B0));
+
+                                    return SliderTheme(
+                                      data: SliderThemeData(
+                                        trackHeight: 4,
+                                        thumbShape: const RoundSliderThumbShape(
+                                          enabledThumbRadius: 8,
+                                        ),
+                                        overlayShape:
+                                            const RoundSliderOverlayShape(
+                                              overlayRadius: 16,
+                                            ),
+                                        activeTrackColor: sliderColor,
+                                        inactiveTrackColor: Colors.white
+                                            .withOpacity(0.3),
+                                        thumbColor: sliderColor,
+                                        overlayColor: Colors.white.withOpacity(
+                                          0.2,
+                                        ),
+                                      ),
+                                      child: Slider(
+                                        value: _brightness,
+                                        min: 0,
+                                        max: 100,
+                                        onChanged: (value) {
+                                          _fadeTimer?.cancel();
+                                          _sliderFadeController?.reset();
+
+                                          setState(() {
+                                            _brightness = value;
+                                            _showBrightnessIndicator = true;
+                                            if (value == 0 && _isOn) {
+                                              _isOn = false;
+                                            } else if (value > 0 && !_isOn) {
+                                              _isOn = true;
+                                            }
+                                          });
+                                        },
+                                        onChangeStart: (value) {
+                                          _fadeTimer?.cancel();
+                                          _sliderFadeController?.reset();
+
+                                          setState(() {
+                                            _showBrightnessIndicator = true;
+                                          });
+                                        },
+                                        onChangeEnd: (value) {
+                                          HapticFeedback.mediumImpact();
+                                          setState(() {
+                                            _showBrightnessIndicator = false;
+                                          });
+                                          debugPrint(
+                                            'Brightness set to: ${value.round()}%',
+                                          );
+
+                                          _fadeTimer?.cancel();
+                                          _fadeTimer = Timer(
+                                            const Duration(milliseconds: 500),
+                                            () {
+                                              _sliderFadeController?.forward();
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          // Brightness indicator
+                          if (_showBrightnessIndicator)
+                            Positioned(
+                              top: -35,
+                              left:
+                                  (_brightness / 100) *
+                                      (MediaQuery.of(context).size.width -
+                                          110) +
+                                  14 -
+                                  5,
+                              child: AnimatedOpacity(
+                                opacity: _showBrightnessIndicator ? 1.0 : 0.0,
+                                duration: const Duration(milliseconds: 150),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.2),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    '${_brightness.round()}',
+                                    style: const TextStyle(
+                                      fontFamily: 'SpaceMono',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabSelector() {
+    const List<Map<String, String>> tabs = [
+      {'label': 'Colors', 'icon': 'assets/images/colorsicon.png'},
+      {'label': 'Whites', 'icon': 'assets/images/whitesicon.png'},
+      {'label': 'Effects', 'icon': 'assets/images/effectsicon.png'},
+      {'label': 'Store', 'icon': 'assets/images/storeicon.png'},
+    ];
+
+    return Container(
+      width: 310,
+      height: 77,
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A2A2A).withOpacity(0.6),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(4),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final tabWidth = constraints.maxWidth / 4;
+
+          return Stack(
+            children: [
+              // Animated sliding indicator for selected tab
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                left: _selectedTabIndex * tabWidth,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: tabWidth,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.02),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.8),
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 12,
+                        spreadRadius: 0,
+                        offset: const Offset(0, 4),
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.3),
+                        blurRadius: 8,
+                        spreadRadius: -1,
+                        offset: const Offset(0, -2),
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.15),
+                        blurRadius: 14,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 0),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Tab buttons
+              Row(
+                children: List.generate(tabs.length, (index) {
+                  final isSelected = _selectedTabIndex == index;
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () => _onTabSelected(index),
+                      behavior: HitTestBehavior.opaque,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Opacity(
+                            opacity: isSelected ? 1.0 : 0.85,
+                            child: Image.asset(
+                              tabs[index]['icon']!,
+                              width: 30,
+                              height: 30,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            tabs[index]['label']!,
+                            style: TextStyle(
+                              fontFamily: 'SpaceMono',
+                              fontSize: 12,
+                              fontWeight: isSelected
+                                  ? FontWeight.w900
+                                  : FontWeight.w700,
+                              color: isSelected
+                                  ? Colors.white
+                                  : const Color(0xFFB0B0B0),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// Content-only widgets for each tab (no tab selector, no light card, no app bar)
+class ColorsTabContent extends StatelessWidget {
+  final Color selectedColor;
+  final Function(Color) onColorChanged;
+  final bool isOn;
+  final Function(bool) onIsOnChanged;
+  final Function(double) onBrightnessChanged;
+  final bool isEffectPlaying;
+
+  const ColorsTabContent({
+    super.key,
+    required this.selectedColor,
+    required this.onColorChanged,
+    required this.isOn,
+    required this.onIsOnChanged,
+    required this.onBrightnessChanged,
+    this.isEffectPlaying = false,
+  });
+
+  static const Map<String, Color> _colorMap = {
+    'Red': Color(0xFFEC202C),
+    'Pumpkin': Color(0xFFED2F24),
+    'Orange': Color(0xFFEF5023),
+    'Marigold': Color(0xFFF37A20),
+    'Sunset': Color(0xFFFAA819),
+    'Yellow': Color(0xFFFDD901),
+    'Lemon': Color(0xFFEFE814),
+    'Lime': Color(0xFFC7D92C),
+    'Pear': Color(0xFFA7CE38),
+    'Emerald': Color(0xFF88C440),
+    'Lt Green': Color(0xFF75BF43),
+    'Green': Color(0xFF6ABC45),
+    'Sea Foam': Color(0xFF6CBD45),
+    'Teal': Color(0xFF71BE48),
+    'Turquoise': Color(0xFF71C178),
+    'Arctic': Color(0xFF70C5A2),
+    'Ocean': Color(0xFF70C9CC),
+    'Sky': Color(0xFF61CAE5),
+    'Water': Color(0xFF43B4E7),
+    'Sapphire': Color(0xFF4782C3),
+    'Lt Blue': Color(0xFF4165AF),
+    'Deep Blue': Color(0xFF3E57A6),
+    'Indigo': Color(0xFF3C54A3),
+    'Orchid': Color(0xFF4B53A3),
+    'Purple': Color(0xFF6053A2),
+    'Lavender': Color(0xFF7952A0),
+    'Lilac': Color(0xFF94519F),
+    'Pink': Color(0xFFB2519E),
+    'Bubblegum': Color(0xFFC94D9B),
+    'Flamingo': Color(0xFFE63A94),
+    'Hot Pink': Color(0xFFEC2180),
+    'Deep Pink': Color(0xFFED1F52),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 6, right: 6, bottom: 0),
+      child: GridView.builder(
+        clipBehavior: Clip.none,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 5,
+          crossAxisSpacing: 6,
+          mainAxisSpacing: 6,
+          childAspectRatio: 0.9,
+        ),
+        itemCount: _colorMap.length,
+        itemBuilder: (context, index) {
+          final colorName = _colorMap.keys.elementAt(index);
+          final color = _colorMap[colorName]!;
+          // No color is selected when an effect is playing
+          final isSelected = !isEffectPlaying && color == selectedColor;
+
+          final displayColor = isSelected
+              ? color
+              : HSLColor.fromColor(color)
+                    .withLightness(HSLColor.fromColor(color).lightness * 0.55)
+                    .toColor();
+
+          return GestureDetector(
+            onTap: () {
+              HapticFeedback.mediumImpact();
+              onColorChanged(color);
+              if (!isOn) {
+                onBrightnessChanged(100.0);
+                onIsOnChanged(true);
+              }
+              debugPrint('Color selected: $colorName - $color');
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              decoration: BoxDecoration(
+                color: displayColor,
+                borderRadius: BorderRadius.circular(16),
+                border: isSelected
+                    ? Border.all(color: Colors.white, width: 4)
+                    : Border.all(color: Colors.transparent, width: 4),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: color.withOpacity(0.6),
+                          blurRadius: 12,
+                          spreadRadius: 3,
+                        ),
+                      ]
+                    : null,
+              ),
+              transform: isSelected
+                  ? Matrix4.identity().scaled(1.05)
+                  : Matrix4.identity(),
+              child: Center(
+                child: AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 300),
+                  style: TextStyle(
+                    fontFamily: 'SpaceMono',
+                    fontSize: isSelected ? 13 : 12,
+                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                  child: Text(colorName, textAlign: TextAlign.center),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class WhitesTabContent extends StatelessWidget {
+  final Color selectedColor;
+  final Function(Color) onColorChanged;
+  final bool isOn;
+  final Function(bool) onIsOnChanged;
+  final Function(double) onBrightnessChanged;
+  final bool isEffectPlaying;
+
+  const WhitesTabContent({
+    super.key,
+    required this.selectedColor,
+    required this.onColorChanged,
+    required this.isOn,
+    required this.onIsOnChanged,
+    required this.onBrightnessChanged,
+    this.isEffectPlaying = false,
+  });
+
+  static const Map<String, Color> _whiteTemperatures = {
+    '2700K': Color(0xFFF8E96C),
+    '3000K': Color(0xFFF6F08E),
+    '3500K': Color(0xFFF4F4AC),
+    '3700K': Color(0xFFF2F4C2),
+    '4000K': Color(0xFFECF5DA),
+    '4100K': Color(0xFFE3F3E9),
+    '4700K': Color(0xFFDDF1F2),
+    '5000K': Color(0xFFD6EFF6),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 6, right: 6, bottom: 0),
+      child: GridView.builder(
+        clipBehavior: Clip.none,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 5,
+          crossAxisSpacing: 6,
+          mainAxisSpacing: 6,
+          childAspectRatio: 0.9,
+        ),
+        itemCount: _whiteTemperatures.length,
+        itemBuilder: (context, index) {
+          final tempName = _whiteTemperatures.keys.elementAt(index);
+          final color = _whiteTemperatures[tempName]!;
+          // No color is selected when an effect is playing
+          final isSelected = !isEffectPlaying && color == selectedColor;
+
+          final displayColor = isSelected
+              ? color
+              : Color.fromRGBO(color.red, color.green, color.blue, 0.6);
+
+          return GestureDetector(
+            onTap: () {
+              HapticFeedback.mediumImpact();
+              onColorChanged(color);
+              if (!isOn) {
+                onBrightnessChanged(100.0);
+                onIsOnChanged(true);
+              }
+              debugPrint('White temperature selected: $tempName - $color');
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              decoration: BoxDecoration(
+                color: displayColor,
+                borderRadius: BorderRadius.circular(16),
+                border: isSelected
+                    ? Border.all(color: Colors.white, width: 4)
+                    : Border.all(color: Colors.transparent, width: 4),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: color.withOpacity(0.6),
+                          blurRadius: 12,
+                          spreadRadius: 3,
+                        ),
+                      ]
+                    : null,
+              ),
+              transform: isSelected
+                  ? Matrix4.identity().scaled(1.05)
+                  : Matrix4.identity(),
+              child: Center(
+                child: AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 300),
+                  style: TextStyle(
+                    fontFamily: 'SpaceMono',
+                    fontSize: isSelected ? 13 : 12,
+                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                  child: Text(tempName, textAlign: TextAlign.center),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class EffectsTabContent extends StatefulWidget {
+  final Color selectedColor;
+  final Function(Color) onColorChanged;
+  final Function(Map<String, dynamic> effectConfig)? onEffectStarted;
+  final Function()? onEffectStopped;
+  final Map<String, dynamic>? playingEffectConfig;
+
+  const EffectsTabContent({
+    super.key,
+    required this.selectedColor,
+    required this.onColorChanged,
+    this.onEffectStarted,
+    this.onEffectStopped,
+    this.playingEffectConfig,
+  });
+
+  @override
+  State<EffectsTabContent> createState() => _EffectsTabContentState();
+}
+
+class _EffectsTabContentState extends State<EffectsTabContent>
+    with TickerProviderStateMixin {
+  int? _pressedPlayIndex;
+  int? _sendingIndex;
+  AnimationController? _sendingAnimationController;
+  Animation<double>? _sendingAnimation;
+  AnimationController? _waveAnimationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _sendingAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _sendingAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _sendingAnimationController!,
+        curve: Curves.easeInOutCubic,
+      ),
+    );
+
+    _waveAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    );
+
+    _sendingAnimationController!.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        final playingIdx = _sendingIndex;
+        setState(() {
+          _sendingIndex = null;
+        });
+        _sendingAnimationController!.reset();
+        _waveAnimationController!.repeat();
+
+        // Notify parent that effect started
+        if (playingIdx != null && widget.onEffectStarted != null) {
+          final effect = _effects[playingIdx];
+          widget.onEffectStarted!(effect);
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _sendingAnimationController?.dispose();
+    _waveAnimationController?.dispose();
+    super.dispose();
+  }
+
+  static const List<Map<String, dynamic>> _effects = [
+    {
+      'name': 'Halloween Fade',
+      'type': 'Wave',
+      'effectType': 'wave3',
+      'waveConfig': {
+        'startColor': Color(0xFF6053A2), // Purple
+        'peakColor': Color(0xFFEC2180), // Hot Pink
+        'valleyColor': Color(0xFF1A1A40), // Dark Blue
+        'waves': [
+          // Wave 1: Large wavelength, fast, going left
+          // Speed must be whole number for seamless loop
+          {
+            'wavelength': 2.5,
+            'amplitude': 0.35,
+            'speed': 2.0, // Changed from 1.8 to 2.0 for seamless loop
+            'direction': -1.0, // left
+            'phase': 0.0,
+          },
+          // Wave 2: Medium wavelength, medium speed, going right
+          {
+            'wavelength': 1.5,
+            'amplitude': 0.25,
+            'speed': 1.0, // Changed from 1.2 to 1.0 for seamless loop
+            'direction': 1.0, // right
+            'phase': 0.33,
+          },
+          // Wave 3: Small wavelength, slow, going right
+          {
+            'wavelength': 0.8,
+            'amplitude': 0.15,
+            'speed':
+                3.0, // Changed from 0.6 to 3.0 for seamless loop (different visual)
+            'direction': 1.0, // right
+            'phase': 0.66,
+          },
+        ],
+        'opacity': 0.4, // 40% amplitude limit
+      },
+    },
+    {
+      'name': 'Valentines Comets',
+      'type': 'Comet',
+      'effectType': 'comet',
+      'cometConfig': {
+        'colors': [
+          Color(0xFF6053A2), // Purple
+          Color(0xFFEC2180), // Hot Pink
+          Color(0xFF1A1A40), // Dark Blue
+        ],
+        'cometCount': 5, // Number of comets
+        'tailLength': 0.25, // Tail length as fraction of container width
+        // Speeds are now whole numbers for seamless looping
+        // Each comet completes N full trips per animation cycle
+        'minSpeed': 1.0, // Completes 1 trip per cycle
+        'maxSpeed': 3.0, // Completes up to 3 trips per cycle
+      },
+    },
+    {'name': 'America', 'type': 'USA Flag', 'effectType': 'usaFlag'},
+    {
+      'name': 'Halloween Sparkle',
+      'type': 'Sparkle',
+      'effectType': 'sparkle',
+      'sparkleConfig': {
+        'backgroundColor': Color(0xFF000000), // Black background
+        'sparkleColor': Color(0xFFFF6B00), // Orange sparkles
+        'sparkleCount': 25, // Number of sparkles
+        'minSize': 2.0, // Minimum sparkle size
+        'maxSize': 6.0, // Maximum sparkle size
+        'twinkleSpeed': 2.0, // How fast sparkles twinkle (cycles per animation)
+      },
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: ListView.builder(
+        itemCount: _effects.length,
+        itemBuilder: (context, index) {
+          final effect = _effects[index];
+          final isPlayPressed = _pressedPlayIndex == index;
+          final isSending = _sendingIndex == index;
+          // Check if this effect is playing based on parent's config
+          final isPlaying =
+              widget.playingEffectConfig != null &&
+              widget.playingEffectConfig!['name'] == effect['name'];
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Column(
+                  children: [
+                    Stack(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2A2A2A),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.1),
+                              width: 1,
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            child: Row(
+                              children: [
+                                // Effect info
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        effect['name']!,
+                                        style: const TextStyle(
+                                          fontFamily: 'SpaceMono',
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        effect['type']!,
+                                        style: TextStyle(
+                                          fontFamily: 'SpaceMono',
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w400,
+                                          color: Colors.white.withOpacity(0.6),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Play/Stop button with press animation
+                                GestureDetector(
+                                  onTapDown: (_) {
+                                    if (!isPlaying) {
+                                      setState(() {
+                                        _pressedPlayIndex = index;
+                                      });
+                                    }
+                                  },
+                                  onTapUp: (_) {
+                                    if (isPlaying) {
+                                      // Stop the effect
+                                      HapticFeedback.mediumImpact();
+                                      _waveAnimationController!.stop();
+                                      _waveAnimationController!.reset();
+                                      // Notify parent that effect stopped
+                                      widget.onEffectStopped?.call();
+                                      debugPrint('Stop ${effect['name']}');
+                                    } else {
+                                      Future.delayed(
+                                        const Duration(milliseconds: 100),
+                                        () {
+                                          if (mounted) {
+                                            setState(() {
+                                              _pressedPlayIndex = null;
+                                              _sendingIndex = index;
+                                            });
+                                            _sendingAnimationController!
+                                                .forward();
+                                          }
+                                        },
+                                      );
+                                      HapticFeedback.mediumImpact();
+                                      debugPrint('Play ${effect['name']}');
+                                    }
+                                  },
+                                  onTapCancel: () {
+                                    setState(() {
+                                      _pressedPlayIndex = null;
+                                    });
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 100),
+                                    curve: Curves.easeOut,
+                                    width: 44,
+                                    height: 44,
+                                    transform: isPlayPressed
+                                        ? (Matrix4.identity()..scale(0.90))
+                                        : Matrix4.identity(),
+                                    decoration: BoxDecoration(
+                                      color: isPlaying
+                                          ? const Color(0xFF8B3A3A)
+                                          : (isPlayPressed
+                                                ? const Color(0xFF3A5070)
+                                                : const Color(0xFF274060)),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: isPlaying
+                                          ? const Icon(
+                                              Icons.stop_rounded,
+                                              color: Colors.white,
+                                              size: 32,
+                                            )
+                                          : Transform.translate(
+                                              offset: const Offset(1, 0),
+                                              child: const Icon(
+                                                Icons.play_arrow_rounded,
+                                                color: Colors.white,
+                                                size: 40,
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Three dot menu
+                                GestureDetector(
+                                  onTap: () {
+                                    HapticFeedback.mediumImpact();
+                                    debugPrint('Menu for ${effect['name']}');
+                                  },
+                                  child: const Icon(
+                                    Icons.more_vert,
+                                    color: Colors.white,
+                                    size: 28,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Animated green border stroke
+                        if (isSending)
+                          Positioned.fill(
+                            child: AnimatedBuilder(
+                              animation: _sendingAnimation!,
+                              builder: (context, child) {
+                                return CustomPaint(
+                                  painter: _SendingBorderPainter(
+                                    progress: _sendingAnimation!.value,
+                                    borderRadius: 16,
+                                    strokeWidth: 3,
+                                    color: Colors.green,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class StoreTabContent extends StatefulWidget {
+  final Color selectedColor;
+  final Function(Color) onColorChanged;
+
+  const StoreTabContent({
+    super.key,
+    required this.selectedColor,
+    required this.onColorChanged,
+  });
+
+  @override
+  State<StoreTabContent> createState() => _StoreTabContentState();
+}
+
+class _StoreTabContentState extends State<StoreTabContent> {
+  String? _selectedPreset;
+
+  static const Map<String, List<Map<String, dynamic>>> _presets = {
+    'Holiday': [
+      {
+        'name': 'Christmas Magic',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFFEC202C), // Red
+          'peakColor': Color(0xFF6ABC45), // Green
+          'valleyColor': Color(0xFFFFFFFF), // White
+          'waves': [
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.35,
+              'speed': 2.0,
+              'direction': -1.0,
+              'phase': 0.0,
+            },
+            {
+              'wavelength': 1.5,
+              'amplitude': 0.25,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.33,
+            },
+          ],
+          'opacity': 0.4,
+        },
+      },
+      {
+        'name': 'Halloween Fade',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFF6053A2),
+          'peakColor': Color(0xFFEC2180),
+          'valleyColor': Color(0xFF1A1A40),
+          'waves': [
+            {
+              'wavelength': 2.5,
+              'amplitude': 0.35,
+              'speed': 2.0,
+              'direction': -1.0,
+              'phase': 0.0,
+            },
+            {
+              'wavelength': 1.5,
+              'amplitude': 0.25,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.33,
+            },
+            {
+              'wavelength': 0.8,
+              'amplitude': 0.15,
+              'speed': 3.0,
+              'direction': 1.0,
+              'phase': 0.66,
+            },
+          ],
+          'opacity': 0.4,
+        },
+      },
+      {
+        'name': 'Halloween Sparkle',
+        'type': 'Sparkle',
+        'effectType': 'sparkle',
+        'sparkleConfig': {
+          'backgroundColor': Color(0xFF000000),
+          'sparkleColor': Color(0xFFFF6B00),
+          'sparkleCount': 25,
+          'minSize': 2.0,
+          'maxSize': 6.0,
+          'twinkleSpeed': 2.0,
+        },
+      },
+    ],
+    'Sports': [
+      {'name': 'America', 'type': 'USA Flag', 'effectType': 'usaFlag'},
+      {
+        'name': 'Team Spirit Wave',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFF4165AF), // Blue
+          'peakColor': Color(0xFFEC202C), // Red
+          'valleyColor': Color(0xFFFFFFFF), // White
+          'waves': [
+            {
+              'wavelength': 1.8,
+              'amplitude': 0.4,
+              'speed': 2.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
+          ],
+          'opacity': 0.45,
+        },
+      },
+    ],
+    'Causes': [
+      {
+        'name': 'Breast Cancer Awareness',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFFEC2180), // Pink
+          'peakColor': Color(0xFFC94D9B), // Deep Pink
+          'valleyColor': Color(0xFFFFFFFF), // White
+          'waves': [
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.35,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
+          ],
+          'opacity': 0.4,
+        },
+      },
+      {
+        'name': 'Pride Celebration',
+        'type': 'Comet',
+        'effectType': 'comet',
+        'cometConfig': {
+          'colors': [
+            Color(0xFFEC202C), // Red
+            Color(0xFFFDD901), // Yellow
+            Color(0xFF6ABC45), // Green
+            Color(0xFF4165AF), // Blue
+            Color(0xFF6053A2), // Purple
+          ],
+          'cometCount': 6,
+          'tailLength': 0.3,
+          'minSpeed': 1.0,
+          'maxSpeed': 2.0,
+        },
+      },
+    ],
+    'Boy Birthday': [
+      {
+        'name': 'Blue Party',
+        'type': 'Sparkle',
+        'effectType': 'sparkle',
+        'sparkleConfig': {
+          'backgroundColor': Color(0xFF4165AF), // Blue
+          'sparkleColor': Color(0xFFFFFFFF), // White
+          'sparkleCount': 30,
+          'minSize': 2.0,
+          'maxSize': 8.0,
+          'twinkleSpeed': 3.0,
+        },
+      },
+      {
+        'name': 'Adventure Comets',
+        'type': 'Comet',
+        'effectType': 'comet',
+        'cometConfig': {
+          'colors': [
+            Color(0xFF4165AF), // Blue
+            Color(0xFF6ABC45), // Green
+            Color(0xFFFDD901), // Yellow
+          ],
+          'cometCount': 5,
+          'tailLength': 0.25,
+          'minSpeed': 2.0,
+          'maxSpeed': 3.0,
+        },
+      },
+    ],
+    'Girl Birthday': [
+      {
+        'name': 'Pink Princess',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFFEC2180), // Hot Pink
+          'peakColor': Color(0xFFC94D9B), // Deep Pink
+          'valleyColor': Color(0xFF94519F), // Lilac
+          'waves': [
+            {
+              'wavelength': 1.5,
+              'amplitude': 0.3,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
+            {
+              'wavelength': 1.0,
+              'amplitude': 0.2,
+              'speed': 2.0,
+              'direction': -1.0,
+              'phase': 0.5,
+            },
+          ],
+          'opacity': 0.4,
+        },
+      },
+      {
+        'name': 'Sparkle Party',
+        'type': 'Sparkle',
+        'effectType': 'sparkle',
+        'sparkleConfig': {
+          'backgroundColor': Color(0xFFC94D9B), // Pink
+          'sparkleColor': Color(0xFFFFFFFF), // White
+          'sparkleCount': 35,
+          'minSize': 2.0,
+          'maxSize': 10.0,
+          'twinkleSpeed': 2.5,
+        },
+      },
+    ],
+    'Haven Picks': [
+      {
+        'name': 'Valentines Comets',
+        'type': 'Comet',
+        'effectType': 'comet',
+        'cometConfig': {
+          'colors': [Color(0xFF6053A2), Color(0xFFEC2180), Color(0xFF1A1A40)],
+          'cometCount': 5,
+          'tailLength': 0.25,
+          'minSpeed': 1.0,
+          'maxSpeed': 3.0,
+        },
+      },
+      {
+        'name': 'Sunset Dreams',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFFFAA819), // Sunset
+          'peakColor': Color(0xFFEF5023), // Orange
+          'valleyColor': Color(0xFF6053A2), // Purple
+          'waves': [
+            {
+              'wavelength': 2.2,
+              'amplitude': 0.35,
+              'speed': 1.0,
+              'direction': -1.0,
+              'phase': 0.0,
+            },
+            {
+              'wavelength': 1.3,
+              'amplitude': 0.25,
+              'speed': 2.0,
+              'direction': 1.0,
+              'phase': 0.4,
+            },
+          ],
+          'opacity': 0.4,
+        },
+      },
+      {
+        'name': 'Ocean Breeze',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFF70C9CC), // Turquoise
+          'peakColor': Color(0xFF4165AF), // Blue
+          'valleyColor': Color(0xFF61CAE5), // Sky
+          'waves': [
+            {
+              'wavelength': 3.0,
+              'amplitude': 0.3,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
+          ],
+          'opacity': 0.35,
+        },
+      },
+    ],
+  };
+
+  void _onPresetSelected(String presetName) {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _selectedPreset = presetName;
+    });
+  }
+
+  void _onBackPressed() {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _selectedPreset = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_selectedPreset == null) {
+      return _buildPresetCategories();
+    } else {
+      return _buildPresetEffects(_selectedPreset!);
+    }
+  }
+
+  Widget _buildPresetCategories() {
+    final categories = _presets.keys.toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.2,
+        ),
+        itemCount: categories.length,
+        itemBuilder: (context, index) {
+          final category = categories[index];
+          final effectCount = _presets[category]!.length;
+
+          return GestureDetector(
+            onTap: () => _onPresetSelected(category),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF2A2A2A),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _getCategoryIcon(category),
+                      color: Colors.white,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      category,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontFamily: 'SpaceMono',
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$effectCount effect${effectCount != 1 ? 's' : ''}',
+                      style: TextStyle(
+                        fontFamily: 'SpaceMono',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.white.withOpacity(0.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'Holiday':
+        return Icons.celebration;
+      case 'Sports':
+        return Icons.sports_football;
+      case 'Causes':
+        return Icons.favorite;
+      case 'Boy Birthday':
+        return Icons.cake;
+      case 'Girl Birthday':
+        return Icons.cake_outlined;
+      case 'Haven Picks':
+        return Icons.star;
+      default:
+        return Icons.folder;
+    }
+  }
+
+  Widget _buildPresetEffects(String presetName) {
+    final effects = _presets[presetName]!;
+
+    return Column(
+      children: [
+        // Header with back button and save preset button
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: _onBackPressed,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A2A2A),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  presetName,
+                  style: const TextStyle(
+                    fontFamily: 'SpaceMono',
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  debugPrint('Save entire preset: $presetName');
+                  // TODO: Implement save entire preset functionality
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFC56A21),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.download, color: Colors.white, size: 20),
+                      SizedBox(width: 6),
+                      Text(
+                        'Save Preset',
+                        style: TextStyle(
+                          fontFamily: 'SpaceMono',
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Effects list
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: ListView.builder(
+              itemCount: effects.length,
+              itemBuilder: (context, index) {
+                final effect = effects[index];
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2A2A2A),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.1),
+                        width: 1,
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      child: Row(
+                        children: [
+                          // Effect info
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  effect['name']!,
+                                  style: const TextStyle(
+                                    fontFamily: 'SpaceMono',
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  effect['type']!,
+                                  style: TextStyle(
+                                    fontFamily: 'SpaceMono',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w400,
+                                    color: Colors.white.withOpacity(0.6),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Preview button
+                          GestureDetector(
+                            onTap: () {
+                              HapticFeedback.mediumImpact();
+                              debugPrint('Preview/Test: ${effect['name']}');
+                              // TODO: Implement preview functionality
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF274060),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.play_arrow_rounded,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Save button
+                          GestureDetector(
+                            onTap: () {
+                              HapticFeedback.mediumImpact();
+                              debugPrint('Save effect: ${effect['name']}');
+                              // TODO: Implement save individual effect functionality
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFC56A21),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.download,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SendingBorderPainter extends CustomPainter {
+  final double progress;
+  final double borderRadius;
+  final double strokeWidth;
+  final Color color;
+
+  _SendingBorderPainter({
+    required this.progress,
+    required this.borderRadius,
+    required this.strokeWidth,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(borderRadius));
+
+    // Create the path for the rounded rectangle border
+    final path = Path()..addRRect(rrect);
+
+    // Get the total length of the path
+    final pathMetrics = path.computeMetrics().first;
+    final totalLength = pathMetrics.length;
+
+    // Calculate overall opacity - fade in at start, fade out at end
+    double overallOpacity;
+    if (progress < 0.1) {
+      overallOpacity = progress / 0.1;
+    } else if (progress > 0.9) {
+      overallOpacity = (1.0 - progress) / 0.1;
+    } else {
+      overallOpacity = 1.0;
+    }
+    overallOpacity = overallOpacity.clamp(0.0, 1.0);
+
+    // Comet tail length (30% of the border)
+    final cometLength = totalLength * 0.30;
+    final headPosition = totalLength * progress;
+
+    // Draw the comet as multiple segments with tapering opacity
+    const int segments = 20;
+    for (int i = 0; i < segments; i++) {
+      // Calculate position for this segment (0 = tail, segments-1 = head)
+      final segmentProgress = i / (segments - 1);
+      final segmentOpacity =
+          segmentProgress *
+          segmentProgress *
+          overallOpacity; // Quadratic falloff for smoother taper
+
+      if (segmentOpacity < 0.02) continue; // Skip nearly invisible segments
+
+      // Calculate segment position along the comet
+      final segmentOffset = cometLength * (1 - segmentProgress);
+      final segmentPos = headPosition - segmentOffset;
+
+      // Calculate small chunk of the path for this segment
+      final chunkSize = cometLength / segments;
+      final startDist = (segmentPos - chunkSize / 2).clamp(0.0, totalLength);
+      final endDist = (segmentPos + chunkSize / 2).clamp(0.0, totalLength);
+
+      if (endDist <= startDist) continue;
+
+      // Taper the stroke width too - head is full width, tail is thinner
+      final taperWidth = strokeWidth * (0.4 + 0.6 * segmentProgress);
+      final glowTaperWidth = (strokeWidth + 6) * (0.3 + 0.7 * segmentProgress);
+
+      final glowPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = glowTaperWidth
+        ..color = color.withOpacity(0.5 * segmentOpacity)
+        ..strokeCap = StrokeCap.round;
+
+      final strokePaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = taperWidth
+        ..color = color.withOpacity(segmentOpacity)
+        ..strokeCap = StrokeCap.round;
+
+      final extractedPath = pathMetrics.extractPath(startDist, endDist);
+      canvas.drawPath(extractedPath, glowPaint);
+      canvas.drawPath(extractedPath, strokePaint);
+
+      // Handle wrap-around for segments at the beginning
+      if (segmentPos < 0) {
+        final wrapPos = totalLength + segmentPos;
+        final wrapStart = (wrapPos - chunkSize / 2).clamp(0.0, totalLength);
+        final wrapEnd = (wrapPos + chunkSize / 2).clamp(0.0, totalLength);
+        if (wrapEnd > wrapStart) {
+          final wrapPath = pathMetrics.extractPath(wrapStart, wrapEnd);
+          canvas.drawPath(wrapPath, glowPaint);
+          canvas.drawPath(wrapPath, strokePaint);
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SendingBorderPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
