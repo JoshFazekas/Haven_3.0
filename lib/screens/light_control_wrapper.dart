@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import '../widgets/effect_painters.dart';
+import 'create_effect_screen.dart';
 
 class LightControlWrapper extends StatefulWidget {
   final String lightName;
@@ -56,9 +57,20 @@ class _LightControlWrapperState extends State<LightControlWrapper>
   // Effect playing state
   Map<String, dynamic>? _playingEffectConfig;
   AnimationController? _effectAnimationController;
-  
+
   // Effects tab folder selection state
   String? _effectsSelectedFolder;
+  
+  // Create effect view state
+  bool _showCreateEffect = false;
+  bool _inEffectConfigScreen = false; // Track if user is in an effect type config screen
+
+  // Music tab animation controller
+  AnimationController? _musicTabAnimationController;
+
+  // Effects tab animation controller
+  AnimationController? _effectsTabAnimationController;
+  bool _effectsTabAnimationPlaying = false;
 
   @override
   void initState() {
@@ -90,6 +102,35 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     if (_playingEffectConfig != null) {
       _effectAnimationController?.repeat();
     }
+
+    // Music tab animation controller
+    _musicTabAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    
+    _musicTabAnimationController!.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        // Keep animation at the last frame instead of looping
+        _musicTabAnimationController!.stop();
+      }
+    });
+
+    // Effects tab animation controller
+    _effectsTabAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    
+    _effectsTabAnimationController!.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        // Keep animation at the last frame instead of looping
+        _effectsTabAnimationController!.stop();
+        setState(() {
+          _effectsTabAnimationPlaying = false;
+        });
+      }
+    });
   }
 
   @override
@@ -97,6 +138,8 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     _fadeTimer?.cancel();
     _sliderFadeController?.dispose();
     _effectAnimationController?.dispose();
+    _musicTabAnimationController?.dispose();
+    _effectsTabAnimationController?.dispose();
     super.dispose();
   }
 
@@ -122,6 +165,27 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     if (index == _selectedTabIndex) return;
 
     HapticFeedback.mediumImpact();
+    
+    // Reset create effect view when leaving Effects tab
+    if (_selectedTabIndex == 2 && index != 2) {
+      _showCreateEffect = false;
+    }
+    
+    // If Music tab (index 3) is tapped, play animation from start
+    if (index == 3) {
+      _musicTabAnimationController?.reset();
+      _musicTabAnimationController?.forward();
+    }
+    
+    // If Effects tab (index 2) is tapped, play animation from start
+    if (index == 2) {
+      _effectsTabAnimationController?.reset();
+      _effectsTabAnimationController?.forward();
+      setState(() {
+        _effectsTabAnimationPlaying = true;
+      });
+    }
+    
     setState(() {
       _selectedTabIndex = index;
     });
@@ -160,47 +224,53 @@ class _LightControlWrapperState extends State<LightControlWrapper>
         backgroundColor: const Color(0xFF1C1C1C),
         elevation: 0,
         automaticallyImplyLeading: false,
-        leading: _selectedTabIndex == 2 && _effectsSelectedFolder == 'My Effects'
-            ? Padding(
-                padding: const EdgeInsets.only(left: 16),
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0.95, end: 1.05),
-                  duration: const Duration(milliseconds: 750),
-                  curve: Curves.easeInOut,
-                  builder: (context, scale, child) {
-                    return Transform.scale(
-                      scale: scale,
-                      child: GestureDetector(
-                        onTap: () {
-                          HapticFeedback.mediumImpact();
-                          debugPrint('Add effect button tapped');
-                        },
-                        child: Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFC56A21),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.add,
-                            color: Colors.white,
-                            size: 28,
-                          ),
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        actions: [
+          if (_selectedTabIndex == 2 && _effectsSelectedFolder == 'My Effects' && !_showCreateEffect)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.95, end: 1.05),
+                duration: const Duration(milliseconds: 750),
+                curve: Curves.easeInOut,
+                builder: (context, scale, child) {
+                  return Transform.scale(
+                    scale: scale,
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticFeedback.mediumImpact();
+                        setState(() {
+                          _showCreateEffect = true;
+                        });
+                        debugPrint('Add effect button tapped');
+                      },
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFC56A21),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.add,
+                          color: Colors.white,
+                          size: 24,
                         ),
                       ),
-                    );
-                  },
-                  onEnd: () {
-                    // Restart animation by rebuilding
-                    if (mounted && _selectedTabIndex == 2 && _effectsSelectedFolder == 'My Effects') {
-                      setState(() {});
-                    }
-                  },
-                ),
-              )
-            : null,
-        actions: [
+                    ),
+                  );
+                },
+                onEnd: () {
+                  // Restart animation by rebuilding
+                  if (mounted &&
+                      _selectedTabIndex == 2 &&
+                      _effectsSelectedFolder == 'My Effects') {
+                    setState(() {});
+                  }
+                },
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: GestureDetector(
@@ -242,7 +312,6 @@ class _LightControlWrapperState extends State<LightControlWrapper>
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 10),
             // Content area - switches between tab content
             Expanded(
               child: AnimatedSwitcher(
@@ -255,7 +324,15 @@ class _LightControlWrapperState extends State<LightControlWrapper>
               padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: _buildTabSelector(),
+                child: IgnorePointer(
+                  ignoring: _showCreateEffect && _inEffectConfigScreen,
+                  child: AnimatedOpacity(
+                    opacity: (_showCreateEffect && _inEffectConfigScreen) ? 0.0 : 1.0,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: _buildTabSelector(),
+                  ),
+                ),
               ),
             ),
             // Light card at the bottom
@@ -301,10 +378,22 @@ class _LightControlWrapperState extends State<LightControlWrapper>
               _effectsSelectedFolder = folder;
             });
           },
+          showCreateEffect: _showCreateEffect,
+          onCreateEffectBack: () {
+            setState(() {
+              _showCreateEffect = false;
+              _inEffectConfigScreen = false;
+            });
+          },
+          onConfigScreenChanged: (inConfigScreen) {
+            setState(() {
+              _inEffectConfigScreen = inConfigScreen;
+            });
+          },
         );
       case 3:
-        return StoreTabContent(
-          key: const ValueKey('store'),
+        return MusicTabContent(
+          key: const ValueKey('music'),
           selectedColor: _selectedColor,
           onColorChanged: _onColorChanged,
         );
@@ -779,8 +868,8 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     const List<Map<String, String>> tabs = [
       {'label': 'Colors', 'icon': 'assets/images/colorsicon.png'},
       {'label': 'Whites', 'icon': 'assets/images/whitesicon.png'},
-      {'label': 'Effects', 'icon': 'assets/images/effectsicon.png'},
-      {'label': 'Store', 'icon': 'assets/images/storeicon.png'},
+      {'label': 'Effects', 'icon': ''},
+      {'label': 'Music', 'icon': 'assets/images/music.png'},
     ];
 
     return Container(
@@ -848,6 +937,8 @@ class _LightControlWrapperState extends State<LightControlWrapper>
               Row(
                 children: List.generate(tabs.length, (index) {
                   final isSelected = _selectedTabIndex == index;
+                  final isMusic = tabs[index]['label'] == 'Music';
+                  final isEffects = tabs[index]['label'] == 'Effects';
                   return Expanded(
                     child: GestureDetector(
                       onTap: () => _onTabSelected(index),
@@ -857,12 +948,75 @@ class _LightControlWrapperState extends State<LightControlWrapper>
                         children: [
                           Opacity(
                             opacity: isSelected ? 1.0 : 0.85,
-                            child: Image.asset(
-                              tabs[index]['icon']!,
-                              width: 30,
-                              height: 30,
-                              fit: BoxFit.contain,
-                            ),
+                            child: isMusic
+                                ? Container(
+                                    width: 30,
+                                    height: 30,
+                                    decoration: const BoxDecoration(
+                                      gradient: RadialGradient(
+                                        center: Alignment.center,
+                                        radius: 0.8,
+                                        colors: [
+                                          Color(0xFF2A2A2A),
+                                          Color(0xFF0A0A0A),
+                                        ],
+                                      ),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Lottie.asset(
+                                        'assets/animations/music.json',
+                                        width: 26,
+                                        height: 26,
+                                        fit: BoxFit.contain,
+                                        controller: _musicTabAnimationController,
+                                        onLoaded: (composition) {
+                                          _musicTabAnimationController?.duration = composition.duration;
+                                        },
+                                      ),
+                                    ),
+                                  )
+                                : isEffects
+                                    ? Container(
+                                        width: 30,
+                                        height: 30,
+                                        decoration: const BoxDecoration(
+                                          gradient: RadialGradient(
+                                            center: Alignment.center,
+                                            radius: 0.8,
+                                            colors: [
+                                              Color(0xFF1A3A6E),
+                                              Color(0xFFEC202C),
+                                            ],
+                                          ),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Center(
+                                          child: _effectsTabAnimationPlaying
+                                              ? Lottie.asset(
+                                                  'assets/animations/effecttab.json',
+                                                  width: 22,
+                                                  height: 22,
+                                                  fit: BoxFit.contain,
+                                                  controller: _effectsTabAnimationController,
+                                                  onLoaded: (composition) {
+                                                    _effectsTabAnimationController?.duration = composition.duration;
+                                                  },
+                                                )
+                                              : Image.asset(
+                                                  'assets/images/effecttab.png',
+                                                  width: 22,
+                                                  height: 22,
+                                                  fit: BoxFit.contain,
+                                                ),
+                                        ),
+                                      )
+                                    : Image.asset(
+                                        tabs[index]['icon']!,
+                                        width: 30,
+                                        height: 30,
+                                        fit: BoxFit.contain,
+                                      ),
                           ),
                           const SizedBox(height: 7),
                           Text(
@@ -1136,6 +1290,9 @@ class EffectsTabContent extends StatefulWidget {
   final Function()? onEffectStopped;
   final Map<String, dynamic>? playingEffectConfig;
   final Function(String?)? onFolderChanged;
+  final bool showCreateEffect;
+  final VoidCallback? onCreateEffectBack;
+  final Function(bool)? onConfigScreenChanged; // Notify parent about config screen state
 
   const EffectsTabContent({
     super.key,
@@ -1145,6 +1302,9 @@ class EffectsTabContent extends StatefulWidget {
     this.onEffectStopped,
     this.playingEffectConfig,
     this.onFolderChanged,
+    this.showCreateEffect = false,
+    this.onCreateEffectBack,
+    this.onConfigScreenChanged,
   });
 
   @override
@@ -1155,7 +1315,7 @@ class _EffectsTabContentState extends State<EffectsTabContent>
     with TickerProviderStateMixin {
   int? _pressedPlayIndex;
   int? _sendingIndex;
-  String? _selectedFolder;
+  List<String> _folderPath = []; // Track nested folder navigation
   AnimationController? _sendingAnimationController;
   Animation<double>? _sendingAnimation;
   AnimationController? _waveAnimationController;
@@ -1209,9 +1369,27 @@ class _EffectsTabContentState extends State<EffectsTabContent>
           'peakColor': Color(0xFFEC2180),
           'valleyColor': Color(0xFF1A1A40),
           'waves': [
-            {'wavelength': 2.5, 'amplitude': 0.7, 'speed': 1.0, 'direction': -1.0, 'phase': 0.0},
-            {'wavelength': 1.5, 'amplitude': 0.5, 'speed': 1.0, 'direction': 1.0, 'phase': 0.33},
-            {'wavelength': 0.8, 'amplitude': 0.3, 'speed': 2.0, 'direction': 1.0, 'phase': 0.66},
+            {
+              'wavelength': 2.5,
+              'amplitude': 0.7,
+              'speed': 1.0,
+              'direction': -1.0,
+              'phase': 0.0,
+            },
+            {
+              'wavelength': 1.5,
+              'amplitude': 0.5,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.33,
+            },
+            {
+              'wavelength': 0.8,
+              'amplitude': 0.3,
+              'speed': 2.0,
+              'direction': 1.0,
+              'phase': 0.66,
+            },
           ],
           'opacity': 0.8,
         },
@@ -1243,160 +1421,8 @@ class _EffectsTabContentState extends State<EffectsTabContent>
         },
       },
     ],
-    'Holidays': [
-      {
-        'name': 'Christmas Magic',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFFEC202C),
-          'peakColor': Color(0xFF6ABC45),
-          'valleyColor': Color(0xFFFFFFFF),
-          'waves': [
-            {'wavelength': 2.0, 'amplitude': 0.7, 'speed': 1.0, 'direction': -1.0, 'phase': 0.0},
-            {'wavelength': 1.5, 'amplitude': 0.5, 'speed': 1.0, 'direction': 1.0, 'phase': 0.33},
-          ],
-          'opacity': 0.8,
-        },
-      },
-      {
-        'name': 'Christmas Sparkle',
-        'type': 'Sparkle',
-        'effectType': 'sparkle',
-        'sparkleConfig': {
-          'backgroundColor': Color(0xFF0A3D0A),
-          'sparkleColor': Color(0xFFFFD700),
-          'sparkleCount': 30,
-          'minSize': 2.0,
-          'maxSize': 8.0,
-          'twinkleSpeed': 2.5,
-        },
-      },
-      {
-        'name': 'New Years Eve',
-        'type': 'Sparkle',
-        'effectType': 'sparkle',
-        'sparkleConfig': {
-          'backgroundColor': Color(0xFF0A0A1A),
-          'sparkleColor': Color(0xFFFFD700),
-          'sparkleCount': 40,
-          'minSize': 2.0,
-          'maxSize': 10.0,
-          'twinkleSpeed': 3.0,
-        },
-      },
-      {
-        'name': 'Valentines Day',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFFEC2180),
-          'peakColor': Color(0xFFFF4D6D),
-          'valleyColor': Color(0xFF8B0A3A),
-          'waves': [
-            {'wavelength': 2.0, 'amplitude': 0.6, 'speed': 1.0, 'direction': 1.0, 'phase': 0.0},
-          ],
-          'opacity': 0.8,
-        },
-      },
-      {
-        'name': 'St Patricks Day',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFF00A86B),
-          'peakColor': Color(0xFF6ABC45),
-          'valleyColor': Color(0xFF2E5A1C),
-          'waves': [
-            {'wavelength': 1.8, 'amplitude': 0.7, 'speed': 1.0, 'direction': -1.0, 'phase': 0.0},
-          ],
-          'opacity': 0.8,
-        },
-      },
-      {
-        'name': 'Easter Pastels',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFFFFB6C1),
-          'peakColor': Color(0xFF87CEEB),
-          'valleyColor': Color(0xFF98FB98),
-          'waves': [
-            {'wavelength': 2.2, 'amplitude': 0.5, 'speed': 1.0, 'direction': 1.0, 'phase': 0.0},
-            {'wavelength': 1.4, 'amplitude': 0.4, 'speed': 1.0, 'direction': -1.0, 'phase': 0.5},
-          ],
-          'opacity': 0.75,
-        },
-      },
-      {
-        'name': 'Fourth of July',
-        'type': 'Comet',
-        'effectType': 'comet',
-        'cometConfig': {
-          'colors': [Color(0xFFEC202C), Color(0xFFFFFFFF), Color(0xFF4165AF)],
-          'cometCount': 6,
-          'tailLength': 0.3,
-          'minSpeed': 2.0,
-          'maxSpeed': 4.0,
-        },
-      },
-      {
-        'name': 'Halloween Fade',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFF6053A2),
-          'peakColor': Color(0xFFEC2180),
-          'valleyColor': Color(0xFF1A1A40),
-          'waves': [
-            {'wavelength': 2.5, 'amplitude': 0.7, 'speed': 1.0, 'direction': -1.0, 'phase': 0.0},
-            {'wavelength': 0.8, 'amplitude': 0.3, 'speed': 2.0, 'direction': 1.0, 'phase': 0.66},
-          ],
-          'opacity': 0.8,
-        },
-      },
-      {
-        'name': 'Halloween Sparkle',
-        'type': 'Sparkle',
-        'effectType': 'sparkle',
-        'sparkleConfig': {
-          'backgroundColor': Color(0xFF000000),
-          'sparkleColor': Color(0xFFFF6B00),
-          'sparkleCount': 25,
-          'minSize': 2.0,
-          'maxSize': 6.0,
-          'twinkleSpeed': 2.0,
-        },
-      },
-      {
-        'name': 'Thanksgiving',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFFD2691E),
-          'peakColor': Color(0xFFFAA819),
-          'valleyColor': Color(0xFF8B4513),
-          'waves': [
-            {'wavelength': 2.0, 'amplitude': 0.6, 'speed': 1.0, 'direction': 1.0, 'phase': 0.0},
-          ],
-          'opacity': 0.8,
-        },
-      },
-      {
-        'name': 'Hanukkah',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFF4165AF),
-          'peakColor': Color(0xFFFFFFFF),
-          'valleyColor': Color(0xFF1A3A6A),
-          'waves': [
-            {'wavelength': 1.8, 'amplitude': 0.6, 'speed': 1.0, 'direction': -1.0, 'phase': 0.0},
-          ],
-          'opacity': 0.8,
-        },
-      },
-    ],
+    // Holidays folder now contains subfolders - effects moved to _holidaySubfolders
+    'Holidays': [],
     'Sports': [
       {'name': 'America', 'type': 'USA Flag', 'effectType': 'usaFlag'},
       {
@@ -1408,7 +1434,13 @@ class _EffectsTabContentState extends State<EffectsTabContent>
           'peakColor': Color(0xFFEC202C),
           'valleyColor': Color(0xFFFFFFFF),
           'waves': [
-            {'wavelength': 1.8, 'amplitude': 0.8, 'speed': 1.0, 'direction': 1.0, 'phase': 0.0},
+            {
+              'wavelength': 1.8,
+              'amplitude': 0.8,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
           ],
           'opacity': 0.85,
         },
@@ -1435,7 +1467,13 @@ class _EffectsTabContentState extends State<EffectsTabContent>
           'peakColor': Color(0xFFFF4040),
           'valleyColor': Color(0xFF8B0000),
           'waves': [
-            {'wavelength': 2.0, 'amplitude': 0.7, 'speed': 1.5, 'direction': 1.0, 'phase': 0.0},
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.7,
+              'speed': 1.5,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
           ],
           'opacity': 0.85,
         },
@@ -1449,7 +1487,13 @@ class _EffectsTabContentState extends State<EffectsTabContent>
           'peakColor': Color(0xFF5080FF),
           'valleyColor': Color(0xFF1A2A5A),
           'waves': [
-            {'wavelength': 2.0, 'amplitude': 0.7, 'speed': 1.5, 'direction': -1.0, 'phase': 0.0},
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.7,
+              'speed': 1.5,
+              'direction': -1.0,
+              'phase': 0.0,
+            },
           ],
           'opacity': 0.85,
         },
@@ -1463,7 +1507,13 @@ class _EffectsTabContentState extends State<EffectsTabContent>
           'peakColor': Color(0xFF6ABC45),
           'valleyColor': Color(0xFF0A3D1A),
           'waves': [
-            {'wavelength': 2.0, 'amplitude': 0.7, 'speed': 1.5, 'direction': 1.0, 'phase': 0.0},
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.7,
+              'speed': 1.5,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
           ],
           'opacity': 0.85,
         },
@@ -1477,7 +1527,13 @@ class _EffectsTabContentState extends State<EffectsTabContent>
           'peakColor': Color(0xFFFAA819),
           'valleyColor': Color(0xFF8B3A00),
           'waves': [
-            {'wavelength': 2.0, 'amplitude': 0.7, 'speed': 1.5, 'direction': -1.0, 'phase': 0.0},
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.7,
+              'speed': 1.5,
+              'direction': -1.0,
+              'phase': 0.0,
+            },
           ],
           'opacity': 0.85,
         },
@@ -1491,7 +1547,13 @@ class _EffectsTabContentState extends State<EffectsTabContent>
           'peakColor': Color(0xFF8A7FD4),
           'valleyColor': Color(0xFF2A1A5A),
           'waves': [
-            {'wavelength': 2.0, 'amplitude': 0.7, 'speed': 1.5, 'direction': 1.0, 'phase': 0.0},
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.7,
+              'speed': 1.5,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
           ],
           'opacity': 0.85,
         },
@@ -1530,8 +1592,20 @@ class _EffectsTabContentState extends State<EffectsTabContent>
           'peakColor': Color(0xFFFFF8DC),
           'valleyColor': Color(0xFFB8860B),
           'waves': [
-            {'wavelength': 1.5, 'amplitude': 0.6, 'speed': 1.0, 'direction': 1.0, 'phase': 0.0},
-            {'wavelength': 1.0, 'amplitude': 0.4, 'speed': 1.5, 'direction': -1.0, 'phase': 0.5},
+            {
+              'wavelength': 1.5,
+              'amplitude': 0.6,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
+            {
+              'wavelength': 1.0,
+              'amplitude': 0.4,
+              'speed': 1.5,
+              'direction': -1.0,
+              'phase': 0.5,
+            },
           ],
           'opacity': 0.85,
         },
@@ -1547,27 +1621,15 @@ class _EffectsTabContentState extends State<EffectsTabContent>
           'peakColor': Color(0xFFC94D9B),
           'valleyColor': Color(0xFFFFFFFF),
           'waves': [
-            {'wavelength': 2.0, 'amplitude': 0.7, 'speed': 1.0, 'direction': 1.0, 'phase': 0.0},
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.7,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
           ],
           'opacity': 0.8,
-        },
-      },
-      {
-        'name': 'Pride Celebration',
-        'type': 'Comet',
-        'effectType': 'comet',
-        'cometConfig': {
-          'colors': [
-            Color(0xFFEC202C),
-            Color(0xFFFDD901),
-            Color(0xFF6ABC45),
-            Color(0xFF4165AF),
-            Color(0xFF6053A2),
-          ],
-          'cometCount': 6,
-          'tailLength': 0.3,
-          'minSpeed': 1.0,
-          'maxSpeed': 2.0,
         },
       },
       {
@@ -1579,8 +1641,20 @@ class _EffectsTabContentState extends State<EffectsTabContent>
           'peakColor': Color(0xFFFDD901),
           'valleyColor': Color(0xFFEC202C),
           'waves': [
-            {'wavelength': 1.8, 'amplitude': 0.6, 'speed': 1.0, 'direction': 1.0, 'phase': 0.0},
-            {'wavelength': 1.2, 'amplitude': 0.4, 'speed': 1.0, 'direction': -1.0, 'phase': 0.5},
+            {
+              'wavelength': 1.8,
+              'amplitude': 0.6,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
+            {
+              'wavelength': 1.2,
+              'amplitude': 0.4,
+              'speed': 1.0,
+              'direction': -1.0,
+              'phase': 0.5,
+            },
           ],
           'opacity': 0.8,
         },
@@ -1594,7 +1668,13 @@ class _EffectsTabContentState extends State<EffectsTabContent>
           'peakColor': Color(0xFF6ABC45),
           'valleyColor': Color(0xFFFFFFFF),
           'waves': [
-            {'wavelength': 2.2, 'amplitude': 0.5, 'speed': 1.0, 'direction': 1.0, 'phase': 0.0},
+            {
+              'wavelength': 2.2,
+              'amplitude': 0.5,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
           ],
           'opacity': 0.75,
         },
@@ -1608,9 +1688,431 @@ class _EffectsTabContentState extends State<EffectsTabContent>
           'peakColor': Color(0xFFFFFFFF),
           'valleyColor': Color(0xFFEC202C),
           'waves': [
-            {'wavelength': 2.0, 'amplitude': 0.7, 'speed': 1.0, 'direction': -1.0, 'phase': 0.0},
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.7,
+              'speed': 1.0,
+              'direction': -1.0,
+              'phase': 0.0,
+            },
           ],
           'opacity': 0.8,
+        },
+      },
+    ],
+  };
+
+  // Holiday subfolders structure
+  static const Map<String, List<Map<String, dynamic>>> _holidaySubfolders = {
+    'New Year\'s': [
+      {
+        'name': 'New Years Eve',
+        'type': 'Sparkle',
+        'effectType': 'sparkle',
+        'sparkleConfig': {
+          'backgroundColor': Color(0xFF0A0A1A),
+          'sparkleColor': Color(0xFFFFD700),
+          'sparkleCount': 40,
+          'minSize': 2.0,
+          'maxSize': 10.0,
+          'twinkleSpeed': 3.0,
+        },
+      },
+      {
+        'name': 'Midnight Celebration',
+        'type': 'Comet',
+        'effectType': 'comet',
+        'cometConfig': {
+          'colors': [Color(0xFFFFD700), Color(0xFFFFFFFF), Color(0xFFC0C0C0)],
+          'cometCount': 8,
+          'tailLength': 0.25,
+          'minSpeed': 2.0,
+          'maxSpeed': 4.0,
+        },
+      },
+    ],
+    'Valentine\'s Day': [
+      {
+        'name': 'Valentines Day',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFFEC2180),
+          'peakColor': Color(0xFFFF4D6D),
+          'valleyColor': Color(0xFF8B0A3A),
+          'waves': [
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.6,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
+          ],
+          'opacity': 0.8,
+        },
+      },
+      {
+        'name': 'Love Sparkle',
+        'type': 'Sparkle',
+        'effectType': 'sparkle',
+        'sparkleConfig': {
+          'backgroundColor': Color(0xFF2A0A1A),
+          'sparkleColor': Color(0xFFFF69B4),
+          'sparkleCount': 30,
+          'minSize': 2.0,
+          'maxSize': 8.0,
+          'twinkleSpeed': 2.5,
+        },
+      },
+    ],
+    'St. Patrick\'s Day': [
+      {
+        'name': 'St Patricks Day',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFF00A86B),
+          'peakColor': Color(0xFF6ABC45),
+          'valleyColor': Color(0xFF2E5A1C),
+          'waves': [
+            {
+              'wavelength': 1.8,
+              'amplitude': 0.7,
+              'speed': 1.0,
+              'direction': -1.0,
+              'phase': 0.0,
+            },
+          ],
+          'opacity': 0.8,
+        },
+      },
+      {
+        'name': 'Lucky Sparkle',
+        'type': 'Sparkle',
+        'effectType': 'sparkle',
+        'sparkleConfig': {
+          'backgroundColor': Color(0xFF0A2A0A),
+          'sparkleColor': Color(0xFFFFD700),
+          'sparkleCount': 20,
+          'minSize': 3.0,
+          'maxSize': 8.0,
+          'twinkleSpeed': 2.5,
+        },
+      },
+    ],
+    'Easter': [
+      {
+        'name': 'Easter Pastels',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFFFFB6C1),
+          'peakColor': Color(0xFF87CEEB),
+          'valleyColor': Color(0xFF98FB98),
+          'waves': [
+            {
+              'wavelength': 2.2,
+              'amplitude': 0.5,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
+            {
+              'wavelength': 1.4,
+              'amplitude': 0.4,
+              'speed': 1.0,
+              'direction': -1.0,
+              'phase': 0.5,
+            },
+          ],
+          'opacity': 0.75,
+        },
+      },
+      {
+        'name': 'Spring Bloom',
+        'type': 'Sparkle',
+        'effectType': 'sparkle',
+        'sparkleConfig': {
+          'backgroundColor': Color(0xFF1A2A1A),
+          'sparkleColor': Color(0xFFFFB6C1),
+          'sparkleCount': 25,
+          'minSize': 2.0,
+          'maxSize': 6.0,
+          'twinkleSpeed': 2.0,
+        },
+      },
+    ],
+    'Memorial Day': [
+      {
+        'name': 'Memorial Day',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFFEC202C),
+          'peakColor': Color(0xFFFFFFFF),
+          'valleyColor': Color(0xFF4165AF),
+          'waves': [
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.6,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
+          ],
+          'opacity': 0.8,
+        },
+      },
+      {'name': 'America', 'type': 'USA Flag', 'effectType': 'usaFlag'},
+    ],
+    'Independence Day': [
+      {
+        'name': 'Fourth of July',
+        'type': 'Comet',
+        'effectType': 'comet',
+        'cometConfig': {
+          'colors': [Color(0xFFEC202C), Color(0xFFFFFFFF), Color(0xFF4165AF)],
+          'cometCount': 6,
+          'tailLength': 0.3,
+          'minSpeed': 2.0,
+          'maxSpeed': 4.0,
+        },
+      },
+      {'name': 'America', 'type': 'USA Flag', 'effectType': 'usaFlag'},
+      {
+        'name': 'Fireworks',
+        'type': 'Sparkle',
+        'effectType': 'sparkle',
+        'sparkleConfig': {
+          'backgroundColor': Color(0xFF000000),
+          'sparkleColor': Color(0xFFFFFFFF),
+          'sparkleCount': 50,
+          'minSize': 2.0,
+          'maxSize': 10.0,
+          'twinkleSpeed': 4.0,
+        },
+      },
+    ],
+    'Halloween': [
+      {
+        'name': 'Halloween Fade',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFF6053A2),
+          'peakColor': Color(0xFFEC2180),
+          'valleyColor': Color(0xFF1A1A40),
+          'waves': [
+            {
+              'wavelength': 2.5,
+              'amplitude': 0.7,
+              'speed': 1.0,
+              'direction': -1.0,
+              'phase': 0.0,
+            },
+            {
+              'wavelength': 0.8,
+              'amplitude': 0.3,
+              'speed': 2.0,
+              'direction': 1.0,
+              'phase': 0.66,
+            },
+          ],
+          'opacity': 0.8,
+        },
+      },
+      {
+        'name': 'Halloween Sparkle',
+        'type': 'Sparkle',
+        'effectType': 'sparkle',
+        'sparkleConfig': {
+          'backgroundColor': Color(0xFF000000),
+          'sparkleColor': Color(0xFFFF6B00),
+          'sparkleCount': 25,
+          'minSize': 2.0,
+          'maxSize': 6.0,
+          'twinkleSpeed': 2.0,
+        },
+      },
+      {
+        'name': 'Spooky Purple',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFF2D0A4E),
+          'peakColor': Color(0xFF6A0DAD),
+          'valleyColor': Color(0xFF1A0A2A),
+          'waves': [
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.6,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
+          ],
+          'opacity': 0.85,
+        },
+      },
+    ],
+    'Thanksgiving': [
+      {
+        'name': 'Thanksgiving',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFFD2691E),
+          'peakColor': Color(0xFFFAA819),
+          'valleyColor': Color(0xFF8B4513),
+          'waves': [
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.6,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
+          ],
+          'opacity': 0.8,
+        },
+      },
+      {
+        'name': 'Autumn Glow',
+        'type': 'Sparkle',
+        'effectType': 'sparkle',
+        'sparkleConfig': {
+          'backgroundColor': Color(0xFF1A1008),
+          'sparkleColor': Color(0xFFFAA819),
+          'sparkleCount': 20,
+          'minSize': 3.0,
+          'maxSize': 8.0,
+          'twinkleSpeed': 2.0,
+        },
+      },
+    ],
+    'Hanukkah': [
+      {
+        'name': 'Hanukkah',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFF4165AF),
+          'peakColor': Color(0xFFFFFFFF),
+          'valleyColor': Color(0xFF1A3A6A),
+          'waves': [
+            {
+              'wavelength': 1.8,
+              'amplitude': 0.6,
+              'speed': 1.0,
+              'direction': -1.0,
+              'phase': 0.0,
+            },
+          ],
+          'opacity': 0.8,
+        },
+      },
+      {
+        'name': 'Menorah Glow',
+        'type': 'Sparkle',
+        'effectType': 'sparkle',
+        'sparkleConfig': {
+          'backgroundColor': Color(0xFF0A1A3A),
+          'sparkleColor': Color(0xFFFFD700),
+          'sparkleCount': 8,
+          'minSize': 4.0,
+          'maxSize': 10.0,
+          'twinkleSpeed': 1.5,
+        },
+      },
+    ],
+    'Diwali': [
+      {
+        'name': 'Festival of Lights',
+        'type': 'Sparkle',
+        'effectType': 'sparkle',
+        'sparkleConfig': {
+          'backgroundColor': Color(0xFF1A0A2A),
+          'sparkleColor': Color(0xFFFFD700),
+          'sparkleCount': 50,
+          'minSize': 2.0,
+          'maxSize': 8.0,
+          'twinkleSpeed': 3.0,
+        },
+      },
+      {
+        'name': 'Diwali Colors',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFFFF6B00),
+          'peakColor': Color(0xFFFFD700),
+          'valleyColor': Color(0xFFEC2180),
+          'waves': [
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.7,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.0,
+            },
+          ],
+          'opacity': 0.85,
+        },
+      },
+    ],
+    'Christmas': [
+      {
+        'name': 'Christmas Magic',
+        'type': 'Wave',
+        'effectType': 'wave3',
+        'waveConfig': {
+          'startColor': Color(0xFFEC202C),
+          'peakColor': Color(0xFF6ABC45),
+          'valleyColor': Color(0xFFFFFFFF),
+          'waves': [
+            {
+              'wavelength': 2.0,
+              'amplitude': 0.7,
+              'speed': 1.0,
+              'direction': -1.0,
+              'phase': 0.0,
+            },
+            {
+              'wavelength': 1.5,
+              'amplitude': 0.5,
+              'speed': 1.0,
+              'direction': 1.0,
+              'phase': 0.33,
+            },
+          ],
+          'opacity': 0.8,
+        },
+      },
+      {
+        'name': 'Christmas Sparkle',
+        'type': 'Sparkle',
+        'effectType': 'sparkle',
+        'sparkleConfig': {
+          'backgroundColor': Color(0xFF0A3D0A),
+          'sparkleColor': Color(0xFFFFD700),
+          'sparkleCount': 30,
+          'minSize': 2.0,
+          'maxSize': 8.0,
+          'twinkleSpeed': 2.5,
+        },
+      },
+      {
+        'name': 'Winter Wonderland',
+        'type': 'Sparkle',
+        'effectType': 'sparkle',
+        'sparkleConfig': {
+          'backgroundColor': Color(0xFF0A1A2A),
+          'sparkleColor': Color(0xFFFFFFFF),
+          'sparkleCount': 35,
+          'minSize': 2.0,
+          'maxSize': 6.0,
+          'twinkleSpeed': 2.0,
         },
       },
     ],
@@ -1619,17 +2121,19 @@ class _EffectsTabContentState extends State<EffectsTabContent>
   void _openFolder(String folderName) {
     HapticFeedback.mediumImpact();
     setState(() {
-      _selectedFolder = folderName;
+      _folderPath.add(folderName);
     });
     widget.onFolderChanged?.call(folderName);
   }
 
-  void _closeFolder() {
+  void _goBack() {
     HapticFeedback.mediumImpact();
     setState(() {
-      _selectedFolder = null;
+      if (_folderPath.isNotEmpty) {
+        _folderPath.removeLast();
+      }
     });
-    widget.onFolderChanged?.call(null);
+    widget.onFolderChanged?.call(_folderPath.isEmpty ? null : _folderPath.last);
   }
 
   String _getFolderImage(String folderName) {
@@ -1657,6 +2161,19 @@ class _EffectsTabContentState extends State<EffectsTabContent>
         return 'assets/animations/sportsreveal.json';
       case 'Causes':
         return 'assets/animations/causereveal.json';
+      // Holiday subfolder animations - use holiday animation for all
+      case 'New Year\'s':
+      case 'Valentine\'s Day':
+      case 'St. Patrick\'s Day':
+      case 'Easter':
+      case 'Memorial Day':
+      case 'Independence Day':
+      case 'Halloween':
+      case 'Thanksgiving':
+      case 'Hanukkah':
+      case 'Diwali':
+      case 'Christmas':
+        return 'assets/animations/holidayreveal.json';
       default:
         return 'assets/animations/myeffectsreveal.json';
     }
@@ -1664,16 +2181,32 @@ class _EffectsTabContentState extends State<EffectsTabContent>
 
   @override
   Widget build(BuildContext context) {
-    if (_selectedFolder == null) {
+    // Show create effect view when triggered from app bar
+    if (widget.showCreateEffect) {
+      return CreateEffectContent(
+        onBack: () {
+          widget.onCreateEffectBack?.call();
+        },
+        onConfigScreenChanged: widget.onConfigScreenChanged,
+      );
+    }
+    
+    if (_folderPath.isEmpty) {
       return _buildFoldersGrid();
+    } else if (_folderPath.length == 1 && _folderPath[0] == 'Holidays') {
+      // Show holiday subfolders
+      return _buildHolidaySubfoldersGrid();
+    } else if (_folderPath.length == 2 && _folderPath[0] == 'Holidays') {
+      // Show effects in holiday subfolder
+      return _buildEffectsList(_folderPath[1], isSubfolder: true);
     } else {
-      return _buildEffectsList(_selectedFolder!);
+      return _buildEffectsList(_folderPath[0]);
     }
   }
 
   Widget _buildFoldersGrid() {
     final folders = _presetFolders.keys.toList();
-    
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: GridView.builder(
@@ -1686,8 +2219,17 @@ class _EffectsTabContentState extends State<EffectsTabContent>
         itemCount: folders.length,
         itemBuilder: (context, index) {
           final folderName = folders[index];
-          final effectCount = _presetFolders[folderName]!.length;
-          
+
+          // For Holidays, show subfolder count; for others, show effect count
+          final String countText;
+          if (folderName == 'Holidays') {
+            final subfolderCount = _holidaySubfolders.keys.length;
+            countText = '$subfolderCount categories';
+          } else {
+            final effectCount = _presetFolders[folderName]!.length;
+            countText = '$effectCount effects';
+          }
+
           return GestureDetector(
             onTap: () => _openFolder(folderName),
             child: Container(
@@ -1744,7 +2286,7 @@ class _EffectsTabContentState extends State<EffectsTabContent>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$effectCount effects',
+                      countText,
                       style: TextStyle(
                         fontFamily: 'SpaceMono',
                         fontSize: 11,
@@ -1762,32 +2304,296 @@ class _EffectsTabContentState extends State<EffectsTabContent>
     );
   }
 
-  Widget _buildEffectsList(String folderName) {
-    final effects = _presetFolders[folderName] ?? [];
-    
+  // Holiday dates for sorting (month, day) - approximate for variable holidays
+  static const Map<String, List<int>> _holidayDates = {
+    'New Year\'s': [1, 1],
+    'Valentine\'s Day': [2, 14],
+    'St. Patrick\'s Day': [3, 17],
+    'Easter': [4, 20], // Approximate - varies each year
+    'Memorial Day': [5, 26], // Last Monday of May - approximate
+    'Independence Day': [7, 4],
+    'Halloween': [10, 31],
+    'Thanksgiving': [11, 28], // Fourth Thursday of November - approximate
+    'Hanukkah': [12, 15], // Varies - approximate
+    'Diwali': [11, 1], // Varies - approximate
+    'Christmas': [12, 25],
+  };
+
+  // Calculate days until a holiday from today
+  int _daysUntilHoliday(String holidayName) {
+    final now = DateTime.now();
+    final holidayDate = _holidayDates[holidayName];
+    if (holidayDate == null) return 365;
+
+    final month = holidayDate[0];
+    final day = holidayDate[1];
+
+    // Create this year's holiday date
+    var holidayThisYear = DateTime(now.year, month, day);
+
+    // If the holiday has passed this year, use next year's date
+    if (holidayThisYear.isBefore(now) ||
+        (holidayThisYear.day == now.day &&
+            holidayThisYear.month == now.month &&
+            holidayThisYear.year == now.year)) {
+      // If it's today, show it first (0 days)
+      if (holidayThisYear.day == now.day &&
+          holidayThisYear.month == now.month) {
+        return 0;
+      }
+      holidayThisYear = DateTime(now.year + 1, month, day);
+    }
+
+    return holidayThisYear.difference(now).inDays;
+  }
+
+  // Get holidays sorted by upcoming date
+  List<String> _getSortedHolidays() {
+    final holidays = _holidaySubfolders.keys.toList();
+    holidays.sort(
+      (a, b) => _daysUntilHoliday(a).compareTo(_daysUntilHoliday(b)),
+    );
+    return holidays;
+  }
+
+  Widget _buildHolidaySubfoldersGrid() {
+    final subfolders = _getSortedHolidays();
+
     return Column(
       children: [
         // Back button header
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           child: Row(
             children: [
               GestureDetector(
-                onTap: _closeFolder,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2A2A2A),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                behavior: HitTestBehavior.opaque,
+                onTap: _goBack,
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 2),
+                    Image.asset(
+                      _getFolderImage('Holidays'),
+                      width: 28,
+                      height: 28,
+                      fit: BoxFit.contain,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
+              const Text(
+                'Holidays',
+                style: TextStyle(
+                  fontFamily: 'SpaceMono',
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Subfolders grid
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1.0,
+              ),
+              itemCount: subfolders.length,
+              itemBuilder: (context, index) {
+                final subfolderName = subfolders[index];
+                final effectCount = _holidaySubfolders[subfolderName]!.length;
+
+                return GestureDetector(
+                  onTap: () => _openFolder(subfolderName),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2A2A2A),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.1),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 56,
+                            height: 56,
+                            child: _getSubfolderIcon(subfolderName),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            subfolderName,
+                            style: const TextStyle(
+                              fontFamily: 'SpaceMono',
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$effectCount effects',
+                            style: TextStyle(
+                              fontFamily: 'SpaceMono',
+                              fontSize: 11,
+                              fontWeight: FontWeight.w400,
+                              color: Colors.white.withOpacity(0.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getHolidayImage(String subfolderName) {
+    switch (subfolderName) {
+      case 'New Year\'s':
+        return 'assets/images/newyears.png';
+      case 'Valentine\'s Day':
+        return 'assets/images/valentines.png';
+      case 'St. Patrick\'s Day':
+        return 'assets/images/stpats.png';
+      case 'Easter':
+        return 'assets/images/easter.png';
+      case 'Memorial Day':
+        return 'assets/images/memorial.png';
+      case 'Independence Day':
+        return 'assets/images/4th.png';
+      case 'Halloween':
+        return 'assets/images/halloween.png';
+      case 'Thanksgiving':
+        return 'assets/images/thanksgiving.png';
+      case 'Hanukkah':
+        return 'assets/images/hanukkah.png';
+      case 'Diwali':
+        return 'assets/images/diwali.png';
+      case 'Christmas':
+        return 'assets/images/christmas.png';
+      default:
+        return 'assets/images/holiday.png';
+    }
+  }
+
+  String _getHolidayAnimation(String subfolderName) {
+    switch (subfolderName) {
+      case 'New Year\'s':
+        return 'assets/animations/newyears.json';
+      case 'Valentine\'s Day':
+        return 'assets/animations/valentines.json';
+      case 'St. Patrick\'s Day':
+        return 'assets/animations/stpats.json';
+      case 'Easter':
+        return 'assets/animations/easter.json';
+      case 'Memorial Day':
+        return 'assets/animations/memorial.json';
+      case 'Independence Day':
+        return 'assets/animations/4th.json';
+      case 'Halloween':
+        return 'assets/animations/halloween.json';
+      case 'Thanksgiving':
+        return 'assets/animations/thanksgiving.json';
+      case 'Hanukkah':
+        return 'assets/animations/hanukkah.json';
+      case 'Diwali':
+        return 'assets/animations/diwali.json';
+      case 'Christmas':
+        return 'assets/animations/christmas.json';
+      default:
+        return 'assets/animations/holiday.json';
+    }
+  }
+
+  Widget _getSubfolderIcon(String subfolderName) {
+    return Lottie.asset(
+      _getHolidayAnimation(subfolderName),
+      fit: BoxFit.contain,
+      repeat: false,
+      errorBuilder: (context, error, stackTrace) {
+        // Fallback to static image if animation fails
+        return Image.asset(
+          _getHolidayImage(subfolderName),
+          width: 48,
+          height: 48,
+          fit: BoxFit.contain,
+        );
+      },
+    );
+  }
+
+  Widget _buildEffectsList(String folderName, {bool isSubfolder = false}) {
+    final effects = isSubfolder
+        ? (_holidaySubfolders[folderName] ?? [])
+        : (_presetFolders[folderName] ?? []);
+
+    return Column(
+      children: [
+        // Back button header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: Row(
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _goBack,
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 2),
+                    isSubfolder
+                        ? Image.asset(
+                            _getHolidayImage(folderName),
+                            width: 28,
+                            height: 28,
+                            fit: BoxFit.contain,
+                          )
+                        : Image.asset(
+                            _getFolderImage(folderName),
+                            width: 28,
+                            height: 28,
+                            fit: BoxFit.contain,
+                          ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
               Text(
                 folderName,
                 style: const TextStyle(
@@ -1881,7 +2687,7 @@ class _EffectsTabContentState extends State<EffectsTabContent>
                                       widget.onEffectStarted!(effect);
                                     }
                                     debugPrint('Play ${effect['name']}');
-                                    
+
                                     Future.delayed(
                                       const Duration(milliseconds: 100),
                                       () {
@@ -1890,7 +2696,8 @@ class _EffectsTabContentState extends State<EffectsTabContent>
                                             _pressedPlayIndex = null;
                                             _sendingIndex = index;
                                           });
-                                          _sendingAnimationController!.forward();
+                                          _sendingAnimationController!
+                                              .forward();
                                         }
                                       },
                                     );
@@ -1935,18 +2742,112 @@ class _EffectsTabContentState extends State<EffectsTabContent>
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              GestureDetector(
-                                onTap: () {
-                                  HapticFeedback.mediumImpact();
-                                  debugPrint('Menu for ${effect['name']}');
-                                },
-                                child: const Icon(
-                                  Icons.more_vert,
-                                  color: Colors.white,
-                                  size: 28,
+                              // Show orange circle with edit icon for non-"My Effects" folders
+                              if (folderName != 'My Effects')
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      HapticFeedback.mediumImpact();
+                                      debugPrint('Edit ${effect['name']}');
+                                    },
+                                    child: Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: Colors.transparent,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: const Color(0xFFF58220),
+                                          width: 2,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Image.asset(
+                                          'assets/images/edit.png',
+                                          width: 20,
+                                          height: 20,
+                                          fit: BoxFit.contain,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              else
+                                // Show 3-dot menu for "My Effects" folder
+                                PopupMenuButton<String>(
+                                  icon: const Icon(
+                                    Icons.more_vert,
+                                    color: Colors.white,
+                                    size: 28,
+                                  ),
+                                  color: const Color(0xFF2A2A2A),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: BorderSide(
+                                      color: Colors.white.withOpacity(0.1),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  offset: const Offset(0, 40),
+                                  onSelected: (value) {
+                                    HapticFeedback.mediumImpact();
+                                    if (value == 'edit') {
+                                      debugPrint('Edit ${effect['name']}');
+                                      // TODO: Navigate to edit screen
+                                    } else if (value == 'delete') {
+                                      debugPrint('Delete ${effect['name']}');
+                                      // TODO: Show confirmation dialog and delete
+                                    }
+                                  },
+                                  itemBuilder: (BuildContext context) => [
+                                    PopupMenuItem<String>(
+                                      value: 'edit',
+                                      child: Row(
+                                        children: [
+                                          Image.asset(
+                                            'assets/images/edit.png',
+                                            width: 20,
+                                            height: 20,
+                                            fit: BoxFit.contain,
+                                            color: Colors.white,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          const Text(
+                                            'Edit Effect',
+                                            style: TextStyle(
+                                              fontFamily: 'SpaceMono',
+                                              fontSize: 14,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    PopupMenuItem<String>(
+                                      value: 'delete',
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.delete_outline,
+                                            color: Color(0xFFEC202C),
+                                            size: 20,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          const Text(
+                                            'Delete Effect',
+                                            style: TextStyle(
+                                              fontFamily: 'SpaceMono',
+                                              fontSize: 14,
+                                              color: Color(0xFFEC202C),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
                             ],
                           ),
                         ),
@@ -1979,473 +2880,84 @@ class _EffectsTabContentState extends State<EffectsTabContent>
   }
 }
 
-class StoreTabContent extends StatefulWidget {
+class MusicTabContent extends StatelessWidget {
   final Color selectedColor;
   final Function(Color) onColorChanged;
 
-  const StoreTabContent({
+  const MusicTabContent({
     super.key,
     required this.selectedColor,
     required this.onColorChanged,
   });
 
   @override
-  State<StoreTabContent> createState() => _StoreTabContentState();
-}
-
-class _StoreTabContentState extends State<StoreTabContent> {
-  String? _selectedPreset;
-
-  static const Map<String, List<Map<String, dynamic>>> _presets = {
-    'Holiday': [
-      {
-        'name': 'Christmas Magic',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFFEC202C), // Red
-          'peakColor': Color(0xFF6ABC45), // Green
-          'valleyColor': Color(0xFFFFFFFF), // White
-          'waves': [
-            {
-              'wavelength': 2.0,
-              'amplitude': 0.7,
-              'speed': 1.0, // Slowed down from 2.0
-              'direction': -1.0,
-              'phase': 0.0,
-            },
-            {
-              'wavelength': 1.5,
-              'amplitude': 0.5,
-              'speed': 1.0,
-              'direction': 1.0,
-              'phase': 0.33,
-            },
-          ],
-          'opacity': 0.8,
-        },
-      },
-      {
-        'name': 'Halloween Fade',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFF6053A2),
-          'peakColor': Color(0xFFEC2180),
-          'valleyColor': Color(0xFF1A1A40),
-          'waves': [
-            {
-              'wavelength': 2.5,
-              'amplitude': 0.7,
-              'speed': 1.0, // Slowed down from 2.0
-              'direction': -1.0,
-              'phase': 0.0,
-            },
-            {
-              'wavelength': 1.5,
-              'amplitude': 0.5,
-              'speed': 1.0,
-              'direction': 1.0,
-              'phase': 0.33,
-            },
-            {
-              'wavelength': 0.8,
-              'amplitude': 0.3,
-              'speed': 2.0, // Slowed down from 3.0
-              'direction': 1.0,
-              'phase': 0.66,
-            },
-          ],
-          'opacity': 0.8,
-        },
-      },
-      {
-        'name': 'Halloween Sparkle',
-        'type': 'Sparkle',
-        'effectType': 'sparkle',
-        'sparkleConfig': {
-          'backgroundColor': Color(0xFF000000),
-          'sparkleColor': Color(0xFFFF6B00),
-          'sparkleCount': 25,
-          'minSize': 2.0,
-          'maxSize': 6.0,
-          'twinkleSpeed': 2.0,
-        },
-      },
-    ],
-    'Sports': [
-      {'name': 'America', 'type': 'USA Flag', 'effectType': 'usaFlag'},
-      {
-        'name': 'Team Spirit Wave',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFF4165AF), // Blue
-          'peakColor': Color(0xFFEC202C), // Red
-          'valleyColor': Color(0xFFFFFFFF), // White
-          'waves': [
-            {
-              'wavelength': 1.8,
-              'amplitude': 0.8,
-              'speed': 1.0, // Slowed down from 2.0
-              'direction': 1.0,
-              'phase': 0.0,
-            },
-          ],
-          'opacity': 0.85,
-        },
-      },
-    ],
-    'Causes': [
-      {
-        'name': 'Breast Cancer Awareness',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFFEC2180), // Pink
-          'peakColor': Color(0xFFC94D9B), // Deep Pink
-          'valleyColor': Color(0xFFFFFFFF), // White
-          'waves': [
-            {
-              'wavelength': 2.0,
-              'amplitude': 0.7,
-              'speed': 1.0,
-              'direction': 1.0,
-              'phase': 0.0,
-            },
-          ],
-          'opacity': 0.8,
-        },
-      },
-      {
-        'name': 'Pride Celebration',
-        'type': 'Comet',
-        'effectType': 'comet',
-        'cometConfig': {
-          'colors': [
-            Color(0xFFEC202C), // Red
-            Color(0xFFFDD901), // Yellow
-            Color(0xFF6ABC45), // Green
-            Color(0xFF4165AF), // Blue
-            Color(0xFF6053A2), // Purple
-          ],
-          'cometCount': 6,
-          'tailLength': 0.3,
-          'minSpeed': 1.0,
-          'maxSpeed': 2.0,
-        },
-      },
-    ],
-    'Boy Birthday': [
-      {
-        'name': 'Blue Party',
-        'type': 'Sparkle',
-        'effectType': 'sparkle',
-        'sparkleConfig': {
-          'backgroundColor': Color(0xFF4165AF), // Blue
-          'sparkleColor': Color(0xFFFFFFFF), // White
-          'sparkleCount': 30,
-          'minSize': 2.0,
-          'maxSize': 8.0,
-          'twinkleSpeed': 3.0,
-        },
-      },
-      {
-        'name': 'Adventure Comets',
-        'type': 'Comet',
-        'effectType': 'comet',
-        'cometConfig': {
-          'colors': [
-            Color(0xFF4165AF), // Blue
-            Color(0xFF6ABC45), // Green
-            Color(0xFFFDD901), // Yellow
-          ],
-          'cometCount': 5,
-          'tailLength': 0.25,
-          'minSpeed': 2.0,
-          'maxSpeed': 3.0,
-        },
-      },
-    ],
-    'Girl Birthday': [
-      {
-        'name': 'Pink Princess',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFFEC2180), // Hot Pink
-          'peakColor': Color(0xFFC94D9B), // Deep Pink
-          'valleyColor': Color(0xFF94519F), // Lilac
-          'waves': [
-            {
-              'wavelength': 1.5,
-              'amplitude': 0.6,
-              'speed': 1.0,
-              'direction': 1.0,
-              'phase': 0.0,
-            },
-            {
-              'wavelength': 1.0,
-              'amplitude': 0.4,
-              'speed': 1.0, // Slowed down from 2.0
-              'direction': -1.0,
-              'phase': 0.5,
-            },
-          ],
-          'opacity': 0.8,
-        },
-      },
-      {
-        'name': 'Sparkle Party',
-        'type': 'Sparkle',
-        'effectType': 'sparkle',
-        'sparkleConfig': {
-          'backgroundColor': Color(0xFFC94D9B), // Pink
-          'sparkleColor': Color(0xFFFFFFFF), // White
-          'sparkleCount': 35,
-          'minSize': 2.0,
-          'maxSize': 10.0,
-          'twinkleSpeed': 2.5,
-        },
-      },
-    ],
-    'Haven Picks': [
-      {
-        'name': 'Valentines Comets',
-        'type': 'Comet',
-        'effectType': 'comet',
-        'cometConfig': {
-          'colors': [Color(0xFF6053A2), Color(0xFFEC2180), Color(0xFF1A1A40)],
-          'cometCount': 5,
-          'tailLength': 0.25,
-          'minSpeed': 1.0,
-          'maxSpeed': 3.0,
-        },
-      },
-      {
-        'name': 'Sunset Dreams',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFFFAA819), // Sunset
-          'peakColor': Color(0xFFEF5023), // Orange
-          'valleyColor': Color(0xFF6053A2), // Purple
-          'waves': [
-            {
-              'wavelength': 2.2,
-              'amplitude': 0.7,
-              'speed': 1.0,
-              'direction': -1.0,
-              'phase': 0.0,
-            },
-            {
-              'wavelength': 1.3,
-              'amplitude': 0.5,
-              'speed': 1.0, // Slowed down from 2.0
-              'direction': 1.0,
-              'phase': 0.4,
-            },
-          ],
-          'opacity': 0.8,
-        },
-      },
-      {
-        'name': 'Ocean Breeze',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFF70C9CC), // Turquoise
-          'peakColor': Color(0xFF4165AF), // Blue
-          'valleyColor': Color(0xFF61CAE5), // Sky
-          'waves': [
-            {
-              'wavelength': 3.0,
-              'amplitude': 0.6,
-              'speed': 1.0,
-              'direction': 1.0,
-              'phase': 0.0,
-            },
-          ],
-          'opacity': 0.75,
-        },
-      },
-    ],
-  };
-
-  void _onPresetSelected(String presetName) {
-    HapticFeedback.mediumImpact();
-    setState(() {
-      _selectedPreset = presetName;
-    });
-  }
-
-  void _onBackPressed() {
-    HapticFeedback.mediumImpact();
-    setState(() {
-      _selectedPreset = null;
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (_selectedPreset == null) {
-      return _buildPresetCategories();
-    } else {
-      return _buildPresetEffects(_selectedPreset!);
-    }
-  }
-
-  Widget _buildPresetCategories() {
-    final categories = _presets.keys.toList();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: GridView.builder(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.2,
-        ),
-        itemCount: categories.length,
-        itemBuilder: (context, index) {
-          final category = categories[index];
-          final effectCount = _presets[category]!.length;
-
-          return GestureDetector(
-            onTap: () => _onPresetSelected(category),
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.1),
-                  width: 1,
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      _getCategoryIcon(category),
-                      color: Colors.white,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      category,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontFamily: 'SpaceMono',
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$effectCount effect${effectCount != 1 ? 's' : ''}',
-                      style: TextStyle(
-                        fontFamily: 'SpaceMono',
-                        fontSize: 11,
-                        fontWeight: FontWeight.w400,
-                        color: Colors.white.withOpacity(0.5),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 60, 24, 0),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2A2A2A),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.1),
+              width: 1,
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  IconData _getCategoryIcon(String category) {
-    switch (category) {
-      case 'Holiday':
-        return Icons.celebration;
-      case 'Sports':
-        return Icons.sports_football;
-      case 'Causes':
-        return Icons.favorite;
-      case 'Boy Birthday':
-        return Icons.cake;
-      case 'Girl Birthday':
-        return Icons.cake_outlined;
-      case 'Haven Picks':
-        return Icons.star;
-      default:
-        return Icons.folder;
-    }
-  }
-
-  Widget _buildPresetEffects(String presetName) {
-    final effects = _presets[presetName]!;
-
-    return Column(
-      children: [
-        // Header with back button and save preset button
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              GestureDetector(
-                onTap: _onBackPressed,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2A2A2A),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+              // Spotify logo
+              Image.asset(
+                'assets/images/spotify.png',
+                width: 120,
+                height: 120,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Sync your lights to the music you love. Connect your Spotify account to get started.',
+                textAlign: TextAlign.left,
+                style: TextStyle(
+                  fontFamily: 'SpaceMono',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withOpacity(0.6),
+                  height: 1.4,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  presetName,
-                  style: const TextStyle(
-                    fontFamily: 'SpaceMono',
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
+              const SizedBox(height: 12),
               GestureDetector(
                 onTap: () {
                   HapticFeedback.mediumImpact();
-                  debugPrint('Save entire preset: $presetName');
-                  // TODO: Implement save entire preset functionality
+                  debugPrint('Connect to Spotify tapped');
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFC56A21),
-                    borderRadius: BorderRadius.circular(12),
+                    color: const Color(0xFF1DB954),
+                    borderRadius: BorderRadius.circular(30),
                   ),
-                  child: const Row(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.download, color: Colors.white, size: 20),
-                      SizedBox(width: 6),
-                      Text(
-                        'Save Preset',
+                      const Text(
+                        'Connect Spotify',
                         style: TextStyle(
                           fontFamily: 'SpaceMono',
-                          fontSize: 13,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Colors.black,
                         ),
                       ),
                     ],
@@ -2455,111 +2967,7 @@ class _StoreTabContentState extends State<StoreTabContent> {
             ],
           ),
         ),
-        // Effects list
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: ListView.builder(
-              itemCount: effects.length,
-              itemBuilder: (context, index) {
-                final effect = effects[index];
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2A2A2A),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.1),
-                        width: 1,
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      child: Row(
-                        children: [
-                          // Effect info
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  effect['name']!,
-                                  style: const TextStyle(
-                                    fontFamily: 'SpaceMono',
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  effect['type']!,
-                                  style: TextStyle(
-                                    fontFamily: 'SpaceMono',
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w400,
-                                    color: Colors.white.withOpacity(0.6),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          // Preview button
-                          GestureDetector(
-                            onTap: () {
-                              HapticFeedback.mediumImpact();
-                              debugPrint('Preview/Test: ${effect['name']}');
-                              // TODO: Implement preview functionality
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF274060),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.play_arrow_rounded,
-                                color: Colors.white,
-                                size: 24,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Save button
-                          GestureDetector(
-                            onTap: () {
-                              HapticFeedback.mediumImpact();
-                              debugPrint('Save effect: ${effect['name']}');
-                              // TODO: Implement save individual effect functionality
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFC56A21),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.download,
-                                color: Colors.white,
-                                size: 24,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

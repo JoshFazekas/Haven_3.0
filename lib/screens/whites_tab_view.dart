@@ -356,7 +356,7 @@ class _WhitesTabViewState extends State<WhitesTabView> {
     const List<Map<String, String>> tabs = [
       {'label': 'Colors', 'icon': 'assets/images/colorsicon.png'},
       {'label': 'Whites', 'icon': 'assets/images/whitesicon.png'},
-      {'label': 'Effects', 'icon': 'assets/images/effectsicon.png'},
+      {'label': 'Effects', 'icon': ''},
       {'label': 'Store', 'icon': 'assets/images/storeicon.png'},
     ];
 
@@ -425,6 +425,7 @@ class _WhitesTabViewState extends State<WhitesTabView> {
               Row(
                 children: List.generate(tabs.length, (index) {
                   final isSelected = _selectedTabIndex == index;
+                  final isEffects = tabs[index]['label'] == 'Effects';
                   return Expanded(
                     child: GestureDetector(
                       onTap: () {
@@ -437,12 +438,35 @@ class _WhitesTabViewState extends State<WhitesTabView> {
                         children: [
                           Opacity(
                             opacity: isSelected ? 1.0 : 0.85,
-                            child: Image.asset(
-                              tabs[index]['icon']!,
-                              width: 30,
-                              height: 30,
-                              fit: BoxFit.contain,
-                            ),
+                            child: isEffects
+                                ? Container(
+                                    width: 30,
+                                    height: 30,
+                                    decoration: BoxDecoration(
+                                      gradient: const RadialGradient(
+                                        center: Alignment.center,
+                                        radius: 0.8,
+                                        colors: [
+                                          Color(0xFF8B1A1A),
+                                          Color(0xFF1A3A6E),
+                                        ],
+                                      ),
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(0xFF1A3A6E).withOpacity(0.5),
+                                          blurRadius: 8,
+                                          spreadRadius: 2,
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : Image.asset(
+                                    tabs[index]['icon']!,
+                                    width: 30,
+                                    height: 30,
+                                    fit: BoxFit.contain,
+                                  ),
                           ),
                           const SizedBox(height: 7),
                           Text(
