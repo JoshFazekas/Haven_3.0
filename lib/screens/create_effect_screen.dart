@@ -1,17 +1,20 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'effects/cascade_effect_screen.dart';
 
 /// Content widget for the "Create Effects" view within the Effects tab.
 /// This is displayed as a subfolder-like view within "My Effects".
 class CreateEffectContent extends StatefulWidget {
   final VoidCallback onBack;
   final Function(bool)? onConfigScreenChanged; // Notify when entering/exiting effect configuration
+  final Function(VoidCallback?)? onSaveCallbackChanged; // Pass save callback to parent
 
   const CreateEffectContent({
     super.key,
     required this.onBack,
     this.onConfigScreenChanged,
+    this.onSaveCallbackChanged,
   });
 
   @override
@@ -131,7 +134,7 @@ class _CreateEffectContentState extends State<CreateEffectContent>
         widget.onConfigScreenChanged?.call(true);
       });
       
-      return _CascadeConfigScreen(
+      return CascadeEffectScreen(
         animationController: _animationController,
         onBack: () {
           HapticFeedback.mediumImpact();
@@ -140,6 +143,18 @@ class _CreateEffectContentState extends State<CreateEffectContent>
           });
           // Notify parent that we've exited the config screen
           widget.onConfigScreenChanged?.call(false);
+          // Clear the save callback
+          widget.onSaveCallbackChanged?.call(null);
+        },
+        onSaveComplete: () {
+          // Go all the way back to My Effects
+          widget.onConfigScreenChanged?.call(false);
+          widget.onSaveCallbackChanged?.call(null);
+          widget.onBack();
+        },
+        onSaveCallbackReady: (saveCallback) {
+          // Pass save callback to parent
+          widget.onSaveCallbackChanged?.call(saveCallback);
         },
       );
     }
@@ -147,6 +162,7 @@ class _CreateEffectContentState extends State<CreateEffectContent>
     // Notify parent that we're on the main selection screen (not in config)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.onConfigScreenChanged?.call(false);
+      widget.onSaveCallbackChanged?.call(null);
     });
     
     // Default: show the effect types grid
@@ -195,37 +211,39 @@ class _CreateEffectContentState extends State<CreateEffectContent>
         ),
         // Effect types grid
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.0,
-              ),
-              itemCount: _effectTypes.length,
-              itemBuilder: (context, index) {
-                final effectType = _effectTypes[index];
-                return _EffectTypeCard(
-                  effectType: effectType,
-                  animationController: _animationController,
-                  getEffectPreviewPainter: _getEffectPreviewPainter,
-                  onTap: () {
-                    HapticFeedback.mediumImpact();
-                    final type = effectType['type'] as String;
-                    if (type == 'cascade') {
-                      setState(() {
-                        _selectedEffectType = type;
-                      });
-                    } else {
-                      debugPrint('Selected effect type: ${effectType['name']}');
-                      // TODO: Navigate to other effect configuration screens
-                    }
-                  },
-                );
-              },
+          child: GridView.builder(
+            padding: EdgeInsets.only(
+              left: 12,
+              right: 12,
+              bottom: MediaQuery.of(context).padding.bottom + 12,
             ),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.0,
+            ),
+            itemCount: _effectTypes.length,
+            itemBuilder: (context, index) {
+              final effectType = _effectTypes[index];
+              return _EffectTypeCard(
+                effectType: effectType,
+                animationController: _animationController,
+                getEffectPreviewPainter: _getEffectPreviewPainter,
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  final type = effectType['type'] as String;
+                  if (type == 'cascade') {
+                    setState(() {
+                      _selectedEffectType = type;
+                    });
+                  } else {
+                    debugPrint('Selected effect type: ${effectType['name']}');
+                    // TODO: Navigate to other effect configuration screens
+                  }
+                },
+              );
+            },
           ),
         ),
       ],
@@ -276,7 +294,7 @@ class _CreateEffectContentState extends State<CreateEffectContent>
           colors: [const Color(0xFFEC202C), const Color(0xFF4165AF), const Color(0xFFFFFFFF)],
         );
       case 'cascade':
-        return _CascadePreviewPainter(
+        return CascadePreviewPainter(
           animationValue: animationValue,
           colors: [const Color(0xFFEC202C), const Color(0xFF6ABC45), const Color(0xFFFFD700)],
         );
@@ -447,64 +465,6 @@ class _EffectTypeCardState extends State<_EffectTypeCard> {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Configuration screen for the Cascade effect
-class _CascadeConfigScreen extends StatelessWidget {
-  final AnimationController animationController;
-  final VoidCallback onBack;
-
-  const _CascadeConfigScreen({
-    required this.animationController,
-    required this.onBack,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Back button header
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: Row(
-            children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onBack,
-                child: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'Cascade',
-                style: TextStyle(
-                  fontFamily: 'SpaceMono',
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ),
-        // TODO: Add cascade configuration options here
-        Expanded(
-          child: Center(
-            child: Text(
-              'Cascade Configuration',
-              style: TextStyle(
-                color: Colors.white54,
-                fontSize: 16,
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -809,59 +769,6 @@ class _MarqueePreviewPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_MarqueePreviewPainter oldDelegate) =>
-      oldDelegate.animationValue != animationValue;
-}
-
-class _CascadePreviewPainter extends CustomPainter {
-  final double animationValue;
-  final List<Color> colors;
-  final double gapWidth;
-
-  _CascadePreviewPainter({
-    required this.animationValue,
-    required this.colors,
-    this.gapWidth = 8.0,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Draw black background
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()..color = Colors.black,
-    );
-
-    // Calculate segment width based on available space - all segments equal size
-    final totalColors = colors.length;
-    final segmentWidth = size.width / (totalColors * 2); // Equal sized segments
-    final totalSegmentWidth = segmentWidth + gapWidth;
-    final totalPatternWidth = totalSegmentWidth * totalColors;
-
-    // Animation offset - scrolls the entire pattern (slowed down by 0.3x)
-    final offset = animationValue * totalPatternWidth * 0.3;
-
-    // Draw color segments with gaps
-    double currentX = -offset;
-
-    // Keep drawing until we've covered the visible area plus buffer
-    while (currentX < size.width + totalPatternWidth) {
-      for (int i = 0; i < colors.length; i++) {
-        final segmentX = currentX + (i * totalSegmentWidth);
-        
-        // Only draw if segment is visible
-        if (segmentX + segmentWidth > 0 && segmentX < size.width) {
-          canvas.drawRect(
-            Rect.fromLTWH(segmentX, 0, segmentWidth, size.height),
-            Paint()..color = colors[i],
-          );
-        }
-      }
-      currentX += totalPatternWidth;
-    }
-  }
-
-  @override
-  bool shouldRepaint(_CascadePreviewPainter oldDelegate) =>
       oldDelegate.animationValue != animationValue;
 }
 

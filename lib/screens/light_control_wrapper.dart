@@ -64,6 +64,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
   // Create effect view state
   bool _showCreateEffect = false;
   bool _inEffectConfigScreen = false; // Track if user is in an effect type config screen
+  VoidCallback? _effectSaveCallback; // Save callback from effect config screens
 
   // Music tab animation controller
   AnimationController? _musicTabAnimationController;
@@ -271,6 +272,36 @@ class _LightControlWrapperState extends State<LightControlWrapper>
                 },
               ),
             ),
+          if (_inEffectConfigScreen && _effectSaveCallback != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  _effectSaveCallback?.call();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A2A2A),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Save',
+                    style: TextStyle(
+                      fontFamily: 'SpaceMono',
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (!_inEffectConfigScreen)
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: GestureDetector(
@@ -310,6 +341,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
         ],
       ),
       body: SafeArea(
+        bottom: !_showCreateEffect, // Allow content to extend to bottom when in create effect mode
         child: Column(
           children: [
             // Content area - switches between tab content
@@ -319,24 +351,28 @@ class _LightControlWrapperState extends State<LightControlWrapper>
                 child: _buildTabContent(),
               ),
             ),
-            // Floating tab selector - persists across all tabs
-            Padding(
-              padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: IgnorePointer(
-                  ignoring: _showCreateEffect && _inEffectConfigScreen,
-                  child: AnimatedOpacity(
-                    opacity: (_showCreateEffect && _inEffectConfigScreen) ? 0.0 : 1.0,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                    child: _buildTabSelector(),
-                  ),
-                ),
-              ),
+            // Floating tab selector - hide when in create effect screen
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              child: _showCreateEffect
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _buildTabSelector(),
+                      ),
+                    ),
             ),
-            // Light card at the bottom
-            _buildLightCard(),
+            // Light card at the bottom - hide when in create effect screen
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              child: _showCreateEffect
+                  ? const SizedBox.shrink()
+                  : _buildLightCard(),
+            ),
           ],
         ),
       ),
@@ -383,11 +419,17 @@ class _LightControlWrapperState extends State<LightControlWrapper>
             setState(() {
               _showCreateEffect = false;
               _inEffectConfigScreen = false;
+              _effectSaveCallback = null;
             });
           },
           onConfigScreenChanged: (inConfigScreen) {
             setState(() {
               _inEffectConfigScreen = inConfigScreen;
+            });
+          },
+          onSaveCallbackChanged: (saveCallback) {
+            setState(() {
+              _effectSaveCallback = saveCallback;
             });
           },
         );
@@ -1293,6 +1335,7 @@ class EffectsTabContent extends StatefulWidget {
   final bool showCreateEffect;
   final VoidCallback? onCreateEffectBack;
   final Function(bool)? onConfigScreenChanged; // Notify parent about config screen state
+  final Function(VoidCallback?)? onSaveCallbackChanged; // Pass save callback from effect config screens
 
   const EffectsTabContent({
     super.key,
@@ -1305,6 +1348,7 @@ class EffectsTabContent extends StatefulWidget {
     this.showCreateEffect = false,
     this.onCreateEffectBack,
     this.onConfigScreenChanged,
+    this.onSaveCallbackChanged,
   });
 
   @override
@@ -2188,6 +2232,7 @@ class _EffectsTabContentState extends State<EffectsTabContent>
           widget.onCreateEffectBack?.call();
         },
         onConfigScreenChanged: widget.onConfigScreenChanged,
+        onSaveCallbackChanged: widget.onSaveCallbackChanged,
       );
     }
     
