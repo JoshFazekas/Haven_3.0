@@ -8,6 +8,7 @@ import 'package:haven/widgets/device_control_card.dart';
 import 'package:haven/widgets/light_zone_card.dart';
 import 'package:haven/core/services/bluetooth_scan_service.dart';
 import 'package:haven/core/services/device_service.dart';
+import 'package:haven/screens/holiday_presets_screen.dart';
 import 'package:lottie/lottie.dart';
 
 // Import threshold constant
@@ -466,49 +467,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             ),
                           ),
                         )
-                      : Column(
-                          children: [
-                            Expanded(
-                              child: ListView.builder(
-                                padding: const EdgeInsets.all(16),
-                                itemCount: _buildLightZoneCards().length,
-                                itemBuilder: (context, index) {
-                                  return _buildLightZoneCards()[index];
-                                },
-                              ),
-                            ),
-                            DeviceControlCard(
-                              devices: _devices,
-                              onAllLightsOn: () {
-                                setState(() {
-                                  _forceAllLightsState = true;
-                                });
-                                // Reset after a short delay so future toggles work
-                                Future.delayed(const Duration(milliseconds: 100), () {
-                                  if (mounted) {
-                                    setState(() {
-                                      _forceAllLightsState = null;
-                                    });
-                                  }
-                                });
-                              },
-                              onAllLightsOff: () {
-                                setState(() {
-                                  _forceAllLightsState = false;
-                                });
-                                // Reset after a short delay so future toggles work
-                                Future.delayed(const Duration(milliseconds: 100), () {
-                                  if (mounted) {
-                                    setState(() {
-                                      _forceAllLightsState = null;
-                                    });
-                                  }
-                                });
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                        ),
+                      : _buildTabContent(),
                 ),
               ),
             ],
@@ -629,6 +588,164 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               ),
             ),
     );
+  }
+
+  /// Builds the content for the currently selected tab
+  Widget _buildTabContent() {
+    switch (_selectedTabIndex) {
+      case 0: // Lights tab
+        return Column(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _buildLightZoneCards().length,
+                itemBuilder: (context, index) {
+                  return _buildLightZoneCards()[index];
+                },
+              ),
+            ),
+            DeviceControlCard(
+              devices: _devices,
+              onAllLightsOn: () {
+                setState(() {
+                  _forceAllLightsState = true;
+                });
+                // Reset after a short delay so future toggles work
+                Future.delayed(const Duration(milliseconds: 100), () {
+                  if (mounted) {
+                    setState(() {
+                      _forceAllLightsState = null;
+                    });
+                  }
+                });
+              },
+              onAllLightsOff: () {
+                setState(() {
+                  _forceAllLightsState = false;
+                });
+                // Reset after a short delay so future toggles work
+                Future.delayed(const Duration(milliseconds: 100), () {
+                  if (mounted) {
+                    setState(() {
+                      _forceAllLightsState = null;
+                    });
+                  }
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+        );
+      case 1: // Scenes tab
+        return Stack(
+          children: [
+            // Add Scene button in top left
+            Positioned(
+              top: 16,
+              left: 16,
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  debugPrint('Add Scene tapped');
+                  // TODO: Navigate to add scene
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFC56A21),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(
+                        Icons.add,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        'Add Scene',
+                        style: TextStyle(
+                          fontFamily: 'SpaceMono',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Centered content
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'No Scenes',
+                    style: TextStyle(
+                      fontFamily: 'SpaceMono',
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const HolidayPresetsScreen(),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3A3A3A),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'View Presets',
+                        style: TextStyle(
+                          fontFamily: 'SpaceMono',
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      case 2: // Schedule tab
+        return const Center(
+          child: Text(
+            'Schedule',
+            style: TextStyle(
+              fontFamily: 'SpaceMono',
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        );
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   /// Builds individual light/zone cards from all devices
