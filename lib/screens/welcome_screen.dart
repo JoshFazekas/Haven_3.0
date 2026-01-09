@@ -6,6 +6,7 @@ import 'package:haven/widgets/location_header.dart';
 import 'package:haven/widgets/nearby_device_popup.dart';
 import 'package:haven/widgets/device_control_card.dart';
 import 'package:haven/widgets/light_zone_card.dart';
+import 'package:haven/widgets/image_view_content.dart';
 import 'package:haven/core/services/bluetooth_scan_service.dart';
 import 'package:haven/core/services/device_service.dart';
 import 'package:haven/screens/holiday_presets_screen.dart';
@@ -62,6 +63,13 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
   // Global lights on/off state (null = no forced state, true = all on, false = all off)
   bool? _forceAllLightsState;
+
+  // Image view toggle state
+  bool _isImageViewActive = false;
+
+  // Channel placement mode state
+  bool _isChannelPlacementMode = false;
+  int _selectedChannelIndex = 0;
 
   @override
   void initState() {
@@ -590,23 +598,159 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     );
   }
 
+  /// Builds the channel carousel for placement mode
+  Widget _buildChannelCarousel(List<String> channelNames) {
+    return Center(
+      child: Container(
+        width: 385,
+        height: 101,
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: channelNames.isEmpty
+            ? Center(
+                child: Text(
+                  'No channels available',
+                  style: TextStyle(
+                    fontFamily: 'SpaceMono',
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.6),
+                  ),
+                ),
+              )
+            : PageView.builder(
+                controller: PageController(
+                  viewportFraction: 0.25,
+                  initialPage: _selectedChannelIndex,
+                ),
+                onPageChanged: (index) {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    _selectedChannelIndex = index;
+                  });
+                },
+                itemCount: channelNames.length,
+                itemBuilder: (context, index) {
+                  final isSelected = index == _selectedChannelIndex;
+                  final channelName = channelNames[index];
+
+                  return AnimatedScale(
+                    duration: const Duration(milliseconds: 200),
+                    scale: isSelected ? 1.0 : 0.7,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFFD4842A).withOpacity(0.3)
+                                : Colors.black.withOpacity(0.2),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFFD4842A)
+                                  : Colors.grey,
+                              width: isSelected ? 3 : 2,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.lightbulb_outline,
+                            color: isSelected
+                                ? const Color(0xFFD4842A)
+                                : Colors.white.withOpacity(0.6),
+                            size: 28,
+                          ),
+                        ),
+                        if (isSelected) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            channelName,
+                            style: const TextStyle(
+                              fontFamily: 'SpaceMono',
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                },
+              ),
+      ),
+    );
+  }
+
   /// Builds the content for the currently selected tab
   Widget _buildTabContent() {
     switch (_selectedTabIndex) {
       case 0: // Lights tab
+        // Build list of channel names from all devices
+        final List<String> channelNames = [];
+        for (final device in _devices) {
+          if (device.lightNames.isNotEmpty) {
+            final lights = device.lightNames.split(',');
+            for (int i = 0; i < lights.length; i++) {
+              final lightName = lights[i].trim();
+              if (lightName.isNotEmpty) {
+                channelNames.add(lightName);
+              }
+            }
+          }
+        }
+
         return Column(
           children: [
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _buildLightZoneCards().length,
-                itemBuilder: (context, index) {
-                  return _buildLightZoneCards()[index];
-                },
-              ),
+              child: _isImageViewActive
+                  ? ImageViewContent(
+                      channels: channelNames,
+                      isChannelPlacementMode: _isChannelPlacementMode,
+                      selectedChannelIndex: _selectedChannelIndex,
+                      onChannelSelected: (index) {
+                        setState(() {
+                          _selectedChannelIndex = index;
+                        });
+                      },
+                      onEnterPlacementMode: () {
+                        setState(() {
+                          _isChannelPlacementMode = true;
+                        });
+                      },
+                      onExitPlacementMode: () {
+                        setState(() {
+                          _isChannelPlacementMode = false;
+                        });
+                      },
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _buildLightZoneCards().length,
+                      itemBuilder: (context, index) {
+                        return _buildLightZoneCards()[index];
+                      },
+                    ),
             ),
-            DeviceControlCard(
+            // Show channel carousel in placement mode, otherwise DeviceControlCard
+            if (_isChannelPlacementMode)
+              _buildChannelCarousel(channelNames)
+            else
+              DeviceControlCard(
               devices: _devices,
+              isImageViewActive: _isImageViewActive,
+              onImageViewTap: () {
+                setState(() {
+                  _isImageViewActive = !_isImageViewActive;
+                });
+              },
               onAllLightsOn: () {
                 setState(() {
                   _forceAllLightsState = true;
@@ -662,11 +806,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: const [
-                      Icon(
-                        Icons.add,
-                        color: Colors.white,
-                        size: 20,
-                      ),
+                      Icon(Icons.add, color: Colors.white, size: 20),
                       SizedBox(width: 6),
                       Text(
                         'Add Scene',

@@ -45,7 +45,7 @@ class DeviceControlCard extends StatefulWidget {
   final List<DeviceController> devices;
   final VoidCallback? onAllLightsOn;
   final VoidCallback? onAllLightsOff;
-  final VoidCallback? onImageViewTap;
+  final VoidCallback? onImageViewToggle;
   final bool isImageViewActive;
 
   const DeviceControlCard({
@@ -53,7 +53,7 @@ class DeviceControlCard extends StatefulWidget {
     required this.devices,
     this.onAllLightsOn,
     this.onAllLightsOff,
-    this.onImageViewTap,
+    this.onImageViewToggle,
     this.isImageViewActive = false,
   });
 
@@ -138,13 +138,13 @@ class _DeviceControlCardState extends State<DeviceControlCard> {
                   _buildImageIconButton(
                     imagePath: 'assets/images/imageview.png',
                     backgroundColor: widget.isImageViewActive 
-                        ? const Color(0xFF3A7BD5) 
+                        ? const Color(0xFF3A7BD5)
                         : const Color(0xFF0D1F33),
                     borderColor: const Color(0xFF3A7BD5),
                     onTap: () {
                       HapticFeedback.mediumImpact();
-                      widget.onImageViewTap?.call();
                       debugPrint('Image view tapped');
+                      widget.onImageViewToggle?.call();
                     },
                   ),
                 ],
