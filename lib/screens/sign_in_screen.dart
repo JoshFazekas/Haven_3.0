@@ -24,6 +24,14 @@ class _SignInScreenState extends State<SignInScreen>
   final _authService = AuthService();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _isForgotPassword = false;
+  bool _isSignUp = false;
+
+  // Forgot password animation
+  late AnimationController _forgotPasswordController;
+
+  // Sign up animation
+  late AnimationController _signUpController;
 
   // Ken Burns Effect
   late AnimationController _kenBurnsController1;
@@ -100,6 +108,18 @@ class _SignInScreenState extends State<SignInScreen>
 
     // Start first image animation
     _kenBurnsController1.forward();
+
+    // Forgot password animation controller
+    _forgotPasswordController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+
+    // Sign up animation controller
+    _signUpController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
   }
 
   void _startImageCycle() {
@@ -164,6 +184,8 @@ class _SignInScreenState extends State<SignInScreen>
     _kenBurnsController1.dispose();
     _kenBurnsController2.dispose();
     _fadeController.dispose();
+    _forgotPasswordController.dispose();
+    _signUpController.dispose();
     _imageTimer?.cancel();
     super.dispose();
   }
@@ -173,6 +195,104 @@ class _SignInScreenState extends State<SignInScreen>
       context,
       message: message,
     );
+  }
+
+  void _toggleForgotPassword() {
+    setState(() {
+      _isForgotPassword = !_isForgotPassword;
+    });
+    if (_isForgotPassword) {
+      _forgotPasswordController.forward();
+    } else {
+      _forgotPasswordController.reverse();
+    }
+  }
+
+  void _toggleSignUp() {
+    setState(() {
+      _isSignUp = !_isSignUp;
+    });
+    if (_isSignUp) {
+      _signUpController.forward();
+    } else {
+      _signUpController.reverse();
+    }
+  }
+
+  Future<void> _sendSignUpEmail() async {
+    final email = _emailController.text.trim();
+
+    if (email.isEmpty) {
+      ErrorMessages.showById(context, errorId: 1);
+      return;
+    }
+
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      ErrorMessages.showById(context, errorId: 3);
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // TODO: Implement actual sign up API call
+      // await _authService.sendSignUpEmail(email);
+      
+      await Future.delayed(const Duration(seconds: 1)); // Simulated delay
+      
+      if (mounted) {
+        ErrorMessages.show(context, message: 'Account creation link sent to $email');
+        _toggleSignUp();
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorDialog('Failed to send sign up email. Please try again.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _sendForgotPasswordEmail() async {
+    final email = _emailController.text.trim();
+
+    if (email.isEmpty) {
+      ErrorMessages.showById(context, errorId: 1);
+      return;
+    }
+
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      ErrorMessages.showById(context, errorId: 3);
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // TODO: Implement actual forgot password API call
+      // await _authService.sendForgotPasswordEmail(email);
+      
+      await Future.delayed(const Duration(seconds: 1)); // Simulated delay
+      
+      if (mounted) {
+        ErrorMessages.show(context, message: 'Password reset link sent to $email');
+        _toggleForgotPassword();
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorDialog('Failed to send reset email. Please try again.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _signIn() async {
@@ -344,14 +464,26 @@ class _SignInScreenState extends State<SignInScreen>
                                 height: 80,
                               ),
                               const SizedBox(height: 12),
-                              Text(
-                                'Welcome back',
-                                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                      color: Colors.white.withOpacity(0.95),
-                                      fontWeight: FontWeight.w300,
-                                      letterSpacing: 1.5,
-                                    ),
-                                textAlign: TextAlign.center,
+                              // Animated welcome text
+                              AnimatedBuilder(
+                                animation: Listenable.merge([_forgotPasswordController, _signUpController]),
+                                builder: (context, child) {
+                                  String text = 'Welcome back';
+                                  if (_isForgotPassword) {
+                                    text = 'Send password reset link';
+                                  } else if (_isSignUp) {
+                                    text = 'Create Account';
+                                  }
+                                  return Text(
+                                    text,
+                                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                          color: Colors.white.withOpacity(0.95),
+                                          fontWeight: FontWeight.w300,
+                                          letterSpacing: 1.5,
+                                        ),
+                                    textAlign: TextAlign.center,
+                                  );
+                                },
                               ),
                               const SizedBox(height: 32),
                             
@@ -375,49 +507,109 @@ class _SignInScreenState extends State<SignInScreen>
                                 }
                               },
                             ),
-                            const SizedBox(height: 20),
                             
-                            // Password field
-                            GlassInputField(
-                              controller: _passwordController,
-                              labelText: 'Password',
-                              prefixIcon: Icons.lock_outlined,
-                              obscureText: _obscurePassword,
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined,
-                                  color: Colors.white.withOpacity(0.9),
-                                  size: 20,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
-                              ),
+                            // Password field with fade animation (hidden for forgot password and sign up)
+                            AnimatedBuilder(
+                              animation: Listenable.merge([_forgotPasswordController, _signUpController]),
+                              builder: (context, child) {
+                                // Use the max of both animations to hide password field
+                                final fadeValue = 1.0 - (_forgotPasswordController.value > _signUpController.value 
+                                    ? _forgotPasswordController.value 
+                                    : _signUpController.value);
+                                return FadeTransition(
+                                  opacity: AlwaysStoppedAnimation(fadeValue),
+                                  child: SizeTransition(
+                                    sizeFactor: AlwaysStoppedAnimation(fadeValue),
+                                    child: Column(
+                                      children: [
+                                        const SizedBox(height: 20),
+                                        GlassInputField(
+                                          controller: _passwordController,
+                                          labelText: 'Password',
+                                          prefixIcon: Icons.lock_outlined,
+                                          obscureText: _obscurePassword,
+                                          suffixIcon: IconButton(
+                                            icon: Icon(
+                                              _obscurePassword
+                                                  ? Icons.visibility_outlined
+                                                  : Icons.visibility_off_outlined,
+                                              color: Colors.white.withOpacity(0.9),
+                                              size: 20,
+                                            ),
+                                            onPressed: () {
+                                              setState(() {
+                                                _obscurePassword = !_obscurePassword;
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                             const SizedBox(height: 12),
                             
-                            // Forgot password button
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: () {},
-                                child: Text(
-                                  'Forgot Password?',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.85),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
+                            // Forgot password button (hidden for forgot password and sign up modes)
+                            AnimatedBuilder(
+                              animation: Listenable.merge([_forgotPasswordController, _signUpController]),
+                              builder: (context, child) {
+                                final fadeValue = 1.0 - (_forgotPasswordController.value > _signUpController.value 
+                                    ? _forgotPasswordController.value 
+                                    : _signUpController.value);
+                                return FadeTransition(
+                                  opacity: AlwaysStoppedAnimation(fadeValue),
+                                  child: SizeTransition(
+                                    sizeFactor: AlwaysStoppedAnimation(fadeValue),
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: TextButton(
+                                        onPressed: _toggleForgotPassword,
+                                        child: Text(
+                                          'Forgot Password?',
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(0.85),
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
+                                );
+                              },
+                            ),
+                            
+                            // Back to Sign In button (shown only for forgot password mode)
+                            AnimatedBuilder(
+                              animation: _forgotPasswordController,
+                              builder: (context, child) {
+                                return FadeTransition(
+                                  opacity: AlwaysStoppedAnimation(_forgotPasswordController.value),
+                                  child: SizeTransition(
+                                    sizeFactor: AlwaysStoppedAnimation(_forgotPasswordController.value),
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: TextButton(
+                                        onPressed: _toggleForgotPassword,
+                                        child: Text(
+                                          'Back to Sign In',
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(0.85),
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                             const SizedBox(height: 24),
                             
-                            // Sign in button with gradient
+                            // Main action button with gradient
                             Container(
                               height: 56,
                               decoration: BoxDecoration(
@@ -437,7 +629,11 @@ class _SignInScreenState extends State<SignInScreen>
                                 ],
                               ),
                               child: ElevatedButton(
-                                onPressed: _isLoading ? null : _signIn,
+                                onPressed: _isLoading 
+                                    ? null 
+                                    : (_isForgotPassword 
+                                        ? _sendForgotPasswordEmail 
+                                        : (_isSignUp ? _sendSignUpEmail : _signIn)),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.transparent,
                                   shadowColor: Colors.transparent,
@@ -454,23 +650,48 @@ class _SignInScreenState extends State<SignInScreen>
                                           strokeWidth: 2.5,
                                         ),
                                       )
-                                    : const Text(
-                                        'Sign In',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
-                                          letterSpacing: 1,
-                                        ),
+                                    : AnimatedBuilder(
+                                        animation: Listenable.merge([_forgotPasswordController, _signUpController]),
+                                        builder: (context, child) {
+                                          String buttonText = 'Sign In';
+                                          if (_isForgotPassword) {
+                                            buttonText = 'Send Email';
+                                          } else if (_isSignUp) {
+                                            buttonText = 'Create Account';
+                                          }
+                                          return Text(
+                                            buttonText,
+                                            style: const TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white,
+                                              letterSpacing: 1,
+                                            ),
+                                          );
+                                        },
                                       ),
                               ),
                             ),
                             const SizedBox(height: 20),
                             
-                            // Sign up link
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
+                            // "Don't have an account? Sign Up" (hidden during forgot password and sign up)
+                            AnimatedBuilder(
+                              animation: Listenable.merge([_forgotPasswordController, _signUpController]),
+                              builder: (context, child) {
+                                final fadeValue = 1.0 - (_forgotPasswordController.value > _signUpController.value 
+                                    ? _forgotPasswordController.value 
+                                    : _signUpController.value);
+                                return FadeTransition(
+                                  opacity: AlwaysStoppedAnimation(fadeValue),
+                                  child: SizeTransition(
+                                    sizeFactor: AlwaysStoppedAnimation(fadeValue),
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
                                 Text(
                                   "Don't have an account? ",
                                   style: TextStyle(
@@ -479,7 +700,7 @@ class _SignInScreenState extends State<SignInScreen>
                                   ),
                                 ),
                                 TextButton(
-                                  onPressed: () {},
+                                  onPressed: _toggleSignUp,
                                   child: const Text(
                                     'Sign Up',
                                     style: TextStyle(
@@ -490,6 +711,44 @@ class _SignInScreenState extends State<SignInScreen>
                                   ),
                                 ),
                               ],
+                              ),
+                            ),
+                            
+                            // "Already have an account? Sign In" (shown only during sign up)
+                            AnimatedBuilder(
+                              animation: _signUpController,
+                              builder: (context, child) {
+                                return FadeTransition(
+                                  opacity: AlwaysStoppedAnimation(_signUpController.value),
+                                  child: SizeTransition(
+                                    sizeFactor: AlwaysStoppedAnimation(_signUpController.value),
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                Text(
+                                  "Already have an account? ",
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.8),
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: _toggleSignUp,
+                                  child: const Text(
+                                    'Sign In',
+                                    style: TextStyle(
+                                      color: Color(0xFFF57F20),
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              ),
                             ),
                           ],
                         ),
