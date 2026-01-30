@@ -42,6 +42,7 @@ dependencies:
   
   # HTTP requests
   http: ^1.2.0
+  dio: ^5.4.0
   
   # Secure storage for credentials
   flutter_secure_storage: ^9.2.2

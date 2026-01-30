@@ -48,6 +48,21 @@ android {
         versionName = flutter.versionName
     }
 
+    // Product flavors for dev and prod environments
+    flavorDimensions += "environment"
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            resValue("string", "app_name", "Haven Dev")
+        }
+        create("prod") {
+            dimension = "environment"
+            resValue("string", "app_name", "Haven")
+        }
+    }
+
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")

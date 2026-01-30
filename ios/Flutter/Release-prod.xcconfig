@@ -1,0 +1,4 @@
+#include "Release.xcconfig"
+FLUTTER_TARGET=lib/main_prod.dart
+PRODUCT_BUNDLE_IDENTIFIER=com.example.haven
+PRODUCT_NAME=Haven
