@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:haven/core/theme/app_colors.dart';
-import 'package:haven/screens/sign_in_screen.dart';
+import 'package:haven/screens/auth_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
