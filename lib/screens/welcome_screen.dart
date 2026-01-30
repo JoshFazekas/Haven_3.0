@@ -305,7 +305,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         _opacity = 1.0;
       });
 
-      // Play the animation and fetch data in parallel (not waiting for animation)
+      // Play the animation and fetch data in parallel (not waiting for animation). 
       _lottieController?.reset();
       _lottieController?.forward();
 
