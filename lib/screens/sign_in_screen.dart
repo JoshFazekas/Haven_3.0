@@ -19,19 +19,23 @@ class SignInScreen extends StatefulWidget {
 class _SignInScreenState extends State<SignInScreen>
     with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController(text: 'joshua.fazekas3@gmail.com');
-  final _passwordController = TextEditingController(text: 'miHaven1');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _authService = AuthService();
   bool _obscurePassword = true;
   bool _isLoading = false;
 
-  // Ken 
-  late AnimationController _kenBurnsController;
-  late AnimationController _crossFadeController;
-  late Animation<double> _scaleAnimation;
+  // Ken Burns Effect
+  late AnimationController _kenBurnsController1;
+  late AnimationController _kenBurnsController2;
+  late AnimationController _fadeController;
+  late Animation<double> _scaleAnimation1;
+  late Animation<double> _scaleAnimation2;
+  late Animation<double> _fadeAnimation;
   
   int _currentImageIndex = 0;
   int _nextImageIndex = 1;
+  bool _showingFirst = true;
   Timer? _imageTimer;
   
   final List<String> _backgroundImages = [
@@ -51,43 +55,93 @@ class _SignInScreenState extends State<SignInScreen>
   }
 
   void _initializeAnimations() {
-    // Ken Burns animation - 12 seconds per image (slower)
-    _kenBurnsController = AnimationController(
+    // Ken Burns controllers for both layers
+    _kenBurnsController1 = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 12),
+      duration: const Duration(seconds: 10),
+    );
+    
+    _kenBurnsController2 = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
     );
 
-    // Cross-fade animation - 1 second transition
-    _crossFadeController = AnimationController(
+    // Crossfade controller - 2 seconds for smooth transition
+    _fadeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(seconds: 2),
     );
 
-    // Scale from 1.0 to 1.1 for subtle zoom effect (less zoom)
-    _scaleAnimation = Tween<double>(
+    // Scale animations for Ken Burns zoom
+    _scaleAnimation1 = Tween<double>(
       begin: 1.0,
-      end: 1.1,
+      end: 1.15,
     ).animate(CurvedAnimation(
-      parent: _kenBurnsController,
+      parent: _kenBurnsController1,
+      curve: Curves.easeInOut,
+    ));
+    
+    _scaleAnimation2 = Tween<double>(
+      begin: 1.0,
+      end: 1.15,
+    ).animate(CurvedAnimation(
+      parent: _kenBurnsController2,
       curve: Curves.easeInOut,
     ));
 
-    _kenBurnsController.forward();
+    // Fade animation for crossfade (0 = show first, 1 = show second)
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeInOut,
+    ));
+
+    // Start first image animation
+    _kenBurnsController1.forward();
   }
 
   void _startImageCycle() {
-    _imageTimer = Timer.periodic(const Duration(seconds: 12), (timer) {
+    _imageTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       if (mounted) {
-        setState(() {
-          _currentImageIndex = _nextImageIndex;
-          _nextImageIndex = (_nextImageIndex + 1) % _backgroundImages.length;
-        });
-        
-        // Reset and restart animations
-        _kenBurnsController.reset();
-        _kenBurnsController.forward();
+        _transitionToNextImage();
       }
     });
+  }
+
+  void _transitionToNextImage() {
+    if (_showingFirst) {
+      // Prepare next image on layer 2
+      _nextImageIndex = (_currentImageIndex + 1) % _backgroundImages.length;
+      _kenBurnsController2.reset();
+      _kenBurnsController2.forward();
+      
+      // Crossfade from layer 1 to layer 2
+      _fadeController.forward().then((_) {
+        if (mounted) {
+          setState(() {
+            _showingFirst = false;
+            _currentImageIndex = _nextImageIndex;
+          });
+        }
+      });
+    } else {
+      // Prepare next image on layer 1
+      _nextImageIndex = (_currentImageIndex + 1) % _backgroundImages.length;
+      _kenBurnsController1.reset();
+      _kenBurnsController1.forward();
+      
+      // Crossfade from layer 2 to layer 1
+      _fadeController.reverse().then((_) {
+        if (mounted) {
+          setState(() {
+            _showingFirst = true;
+            _currentImageIndex = _nextImageIndex;
+          });
+        }
+      });
+    }
   }
 
   Future<void> _loadLastEmail() async {
@@ -107,8 +161,9 @@ class _SignInScreenState extends State<SignInScreen>
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _kenBurnsController.dispose();
-    _crossFadeController.dispose();
+    _kenBurnsController1.dispose();
+    _kenBurnsController2.dispose();
+    _fadeController.dispose();
     _imageTimer?.cancel();
     super.dispose();
   }
@@ -198,28 +253,48 @@ class _SignInScreenState extends State<SignInScreen>
     return Scaffold(
       body: Stack(
         children: [
-          // Layer 1: Animated cycling background images with smooth transitions
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 1000),
-            child: Container(
-              key: ValueKey<int>(_currentImageIndex),
-              width: double.infinity,
-              height: double.infinity,
-              child: AnimatedBuilder(
-                animation: _kenBurnsController,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _scaleAnimation.value,
-                    child: Image.asset(
-                      _backgroundImages[_currentImageIndex],
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      height: double.infinity,
-                    ),
-                  );
-                },
-              ),
-            ),
+          // Background Layer 1 - First image with Ken Burns
+          AnimatedBuilder(
+            animation: Listenable.merge([_kenBurnsController1, _fadeController]),
+            builder: (context, child) {
+              final imageIndex = _showingFirst ? _currentImageIndex : _nextImageIndex;
+              return Opacity(
+                opacity: 1.0 - _fadeAnimation.value,
+                child: Transform.scale(
+                  scale: _scaleAnimation1.value,
+                  alignment: Alignment.center,
+                  child: Image.asset(
+                    _backgroundImages[imageIndex],
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    gaplessPlayback: true,
+                  ),
+                ),
+              );
+            },
+          ),
+          
+          // Background Layer 2 - Second image with Ken Burns (crossfades on top)
+          AnimatedBuilder(
+            animation: Listenable.merge([_kenBurnsController2, _fadeController]),
+            builder: (context, child) {
+              final imageIndex = _showingFirst ? _nextImageIndex : _currentImageIndex;
+              return Opacity(
+                opacity: _fadeAnimation.value,
+                child: Transform.scale(
+                  scale: _scaleAnimation2.value,
+                  alignment: Alignment.center,
+                  child: Image.asset(
+                    _backgroundImages[imageIndex],
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    gaplessPlayback: true,
+                  ),
+                ),
+              );
+            },
           ),
           
           // Content - Liquid Glass Container
