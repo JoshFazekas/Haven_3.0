@@ -3,14 +3,15 @@ import 'package:haven/core/config/environment.dart';
 import 'package:haven/core/theme/app_theme.dart';
 import 'package:haven/screens/splash_screen.dart';
 
+/// Entry point for HavenApp-PROD scheme
+/// Targets: https://stg-api.havenlighting.com
 void main() {
-  // Default to DEV environment when using main.dart
-  EnvironmentConfig.init(Environment.dev);
-  runApp(const MyApp());
+  EnvironmentConfig.init(Environment.prod);
+  runApp(const HavenApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class HavenApp extends StatelessWidget {
+  const HavenApp({super.key});
 
   @override
   Widget build(BuildContext context) {

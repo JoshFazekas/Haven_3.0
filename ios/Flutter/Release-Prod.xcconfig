@@ -1,5 +1,7 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
 
-// Default Release configuration uses PROD environment
+// HavenApp-PROD Configuration  
 FLUTTER_TARGET=lib/main_prod.dart
+PRODUCT_BUNDLE_IDENTIFIER=com.haven.app3
+PRODUCT_NAME=Haven

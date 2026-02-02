@@ -3,20 +3,21 @@ import 'package:haven/core/config/environment.dart';
 import 'package:haven/core/theme/app_theme.dart';
 import 'package:haven/screens/splash_screen.dart';
 
+/// Entry point for HavenApp-DEV scheme
+/// Targets: https://dev-api.havenlighting.com
 void main() {
-  // Default to DEV environment when using main.dart
   EnvironmentConfig.init(Environment.dev);
-  runApp(const MyApp());
+  runApp(const HavenApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class HavenApp extends StatelessWidget {
+  const HavenApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Haven',
-      debugShowCheckedModeBanner: false,
+      title: 'Haven${EnvironmentConfig.isDev ? ' (DEV)' : ''}',
+      debugShowCheckedModeBanner: EnvironmentConfig.isDev,
       theme: AppTheme.darkTheme,
       home: const SplashScreen(),
     );

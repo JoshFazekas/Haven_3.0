@@ -1,7 +1,12 @@
+import 'package:haven/core/config/environment.dart';
+
 /// API configuration for the Haven lighting system
 class ApiConfig {
-  // TODO: Replace with your actual API configuration
-  static const String baseUrl = 'https://your-api-url.com';
+  // Base URL is determined by the current environment
+  // DEV: https://dev-api.havenlighting.com
+  // PROD: https://stg-api.havenlighting.com
+  static String get baseUrl => EnvironmentConfig.baseUrl;
+  
   static const String bearerToken = 'YOUR_TOKEN_HERE';
   
   // Example endpoints that might be used:
