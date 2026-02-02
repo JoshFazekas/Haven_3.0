@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:haven/core/config/environment.dart';
 import 'api_logger.dart';
 
 class AuthService {
-  static const String _baseUrl = 'https://stg-api.havenlighting.com/api';
+  /// Get the base API URL from the environment configuration
+  static String get _baseUrl => '${EnvironmentConfig.baseUrl}/api';
+  
   static const Map<String, String> _defaultHeaders = {
     'Accept': 'application/json',
     'Content-Type': 'application/json',
@@ -19,7 +22,7 @@ class AuthService {
     String email,
     String password,
   ) async {
-    const endpoint = '$_baseUrl/Auth/Authenticate';
+    final endpoint = '$_baseUrl/Auth/Authenticate';
     final body = {'userName': email, 'password': password};
 
     // Log the request
@@ -61,6 +64,57 @@ class AuthService {
 
       throw AuthException(
         'Sign in failed. Please check your connection and try again.',
+      );
+    }
+  }
+
+  /// Registers a new user with email and password
+  /// Returns a map containing the registration response
+  Future<Map<String, dynamic>> register(
+    String email,
+    String password,
+  ) async {
+    final endpoint = '$_baseUrl/Auth/authenticate';
+    final body = {'userName': email, 'password': password};
+
+    // Log the request
+    _logger.logRequest(
+      method: 'POST',
+      endpoint: endpoint,
+      headers: _defaultHeaders,
+      body: body,
+    );
+
+    try {
+      final response = await http.post(
+        Uri.parse(endpoint),
+        headers: _defaultHeaders,
+        body: jsonEncode(body),
+      );
+
+      // Log the response
+      _logger.logResponse(
+        method: 'POST',
+        endpoint: endpoint,
+        statusCode: response.statusCode,
+        body: response.body,
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw AuthException(
+          'Registration failed. Please try again.',
+        );
+      }
+    } catch (e) {
+      if (e is AuthException) rethrow;
+
+      // Log the error
+      _logger.logError(method: 'POST', endpoint: endpoint, error: e);
+
+      throw AuthException(
+        'Registration failed. Please check your connection and try again.',
       );
     }
   }
@@ -116,7 +170,7 @@ class AuthService {
   /// Returns true if token is valid, false if expired/invalid
   Future<bool> validateToken(String bearerToken) async {
     // Use a lightweight endpoint to check token validity
-    const endpoint = '$_baseUrl/User/GetCurrent';
+    final endpoint = '$_baseUrl/User/GetCurrent';
 
     final headers = {
       ..._defaultHeaders,

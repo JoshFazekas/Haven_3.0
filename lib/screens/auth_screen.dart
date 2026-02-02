@@ -337,11 +337,15 @@ class _SignInScreenState extends State<SignInScreen>
       final token = result['token'] as String;
       final refreshToken = result['refreshToken'] as String;
       final userId = result['id'] as int;
+      final username = result['username'] as String?;
+      final userType = result['userType'] as int?;
 
       await AuthState().login(
         token: token,
         refreshToken: refreshToken,
         userId: userId,
+        username: username,
+        userType: userType,
         email: email,
         password: password,
       );

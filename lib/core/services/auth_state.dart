@@ -14,6 +14,8 @@ class AuthState extends ChangeNotifier {
   static const _tokenKey = 'auth_token';
   static const _refreshTokenKey = 'refresh_token';
   static const _userIdKey = 'user_id';
+  static const _usernameKey = 'username';
+  static const _userTypeKey = 'user_type';
   static const _emailKey = 'user_email';
   static const _passwordKey = 'user_password';
   static const _lastEmailKey = 'last_user_email'; // Persists after logout
@@ -21,12 +23,16 @@ class AuthState extends ChangeNotifier {
   String? _token;
   String? _refreshToken;
   int? _userId;
+  String? _username;
+  int? _userType;
   String? _email;
   String? _password;
 
   String? get token => _token;
   String? get refreshToken => _refreshToken;
   int? get userId => _userId;
+  String? get username => _username;
+  int? get userType => _userType;
   String? get email => _email;
   String? get password => _password;
   bool get isLoggedIn => _token != null;
@@ -38,6 +44,9 @@ class AuthState extends ChangeNotifier {
       _refreshToken = await _storage.read(key: _refreshTokenKey);
       final userIdStr = await _storage.read(key: _userIdKey);
       _userId = userIdStr != null ? int.tryParse(userIdStr) : null;
+      _username = await _storage.read(key: _usernameKey);
+      final userTypeStr = await _storage.read(key: _userTypeKey);
+      _userType = userTypeStr != null ? int.tryParse(userTypeStr) : null;
       _email = await _storage.read(key: _emailKey);
       _password = await _storage.read(key: _passwordKey);
 
@@ -65,12 +74,16 @@ class AuthState extends ChangeNotifier {
     required String token,
     required String refreshToken,
     required int userId,
+    String? username,
+    int? userType,
     String? email,
     String? password,
   }) async {
     _token = token;
     _refreshToken = refreshToken;
     _userId = userId;
+    if (username != null) _username = username;
+    if (userType != null) _userType = userType;
     if (email != null) _email = email;
     if (password != null) _password = password;
 
@@ -79,6 +92,12 @@ class AuthState extends ChangeNotifier {
       await _storage.write(key: _tokenKey, value: token);
       await _storage.write(key: _refreshTokenKey, value: refreshToken);
       await _storage.write(key: _userIdKey, value: userId.toString());
+      if (username != null) {
+        await _storage.write(key: _usernameKey, value: username);
+      }
+      if (userType != null) {
+        await _storage.write(key: _userTypeKey, value: userType.toString());
+      }
       if (email != null) {
         await _storage.write(key: _emailKey, value: email);
       }
@@ -120,6 +139,8 @@ class AuthState extends ChangeNotifier {
     _token = null;
     _refreshToken = null;
     _userId = null;
+    _username = null;
+    _userType = null;
     _email = null;
     _password = null;
 
@@ -128,6 +149,8 @@ class AuthState extends ChangeNotifier {
       await _storage.delete(key: _tokenKey);
       await _storage.delete(key: _refreshTokenKey);
       await _storage.delete(key: _userIdKey);
+      await _storage.delete(key: _usernameKey);
+      await _storage.delete(key: _userTypeKey);
       await _storage.delete(key: _emailKey);
       await _storage.delete(key: _passwordKey);
 
