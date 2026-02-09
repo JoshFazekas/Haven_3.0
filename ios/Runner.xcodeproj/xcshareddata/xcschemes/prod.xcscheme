@@ -76,13 +76,13 @@
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "FLUTTER_TARGET"
-            value = "lib/main_dev.dart"
+            value = "lib/main_prod.dart"
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction
-      buildConfiguration = "Profile"
+      buildConfiguration = "Release"
       shouldUseLaunchSchemeArgsEnv = "YES"
       savedToolIdentifier = ""
       useCustomWorkingDirectory = "NO"

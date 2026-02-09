@@ -47,19 +47,6 @@ android {
         versionName = flutter.versionName
     }
 
-    flavorDimensions += "environment"
-    productFlavors {
-        create("dev") {
-            dimension = "environment"
-            // Same bundle ID for both environments: com.haven.app3
-            resValue("string", "app_name", "Haven DEV")
-        }
-        create("prod") {
-            dimension = "environment"
-            resValue("string", "app_name", "Haven")
-        }
-    }
-
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")

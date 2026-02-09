@@ -5,43 +5,20 @@
       "name": "HavenApp-DEV",
       "request": "launch",
       "type": "dart",
-      "program": "lib/main_dev.dart",
-      "args": [
-        "--flavor",
-        "dev"
-      ]
+      "program": "lib/main_dev.dart"
     },
     {
       "name": "HavenApp-PROD",
       "request": "launch",
       "type": "dart",
-      "program": "lib/main_prod.dart",
-      "args": [
-        "--flavor",
-        "prod"
-      ]
-    },
-    {
-      "name": "HavenApp-DEV (profile mode)",
-      "request": "launch",
-      "type": "dart",
-      "program": "lib/main_dev.dart",
-      "flutterMode": "profile",
-      "args": [
-        "--flavor",
-        "dev"
-      ]
+      "program": "lib/main_prod.dart"
     },
     {
       "name": "HavenApp-PROD (release mode)",
       "request": "launch",
       "type": "dart",
       "program": "lib/main_prod.dart",
-      "flutterMode": "release",
-      "args": [
-        "--flavor",
-        "prod"
-      ]
+      "flutterMode": "release"
     }
   ]
 }
