@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:haven/core/services/auth_service.dart';
 import 'package:haven/core/services/auth_state.dart';
-import 'package:haven/screens/welcome_screen.dart';
+import 'package:haven/core/services/location_data_service.dart';
+import 'package:haven/screens/lights_screen.dart';
 import 'package:haven/widgets/glass_input_field.dart';
 import 'package:haven/core/config/error_messages.dart';
 import 'dart:async';
@@ -381,7 +382,10 @@ class _SignInScreenState extends State<SignInScreen>
               bearerToken: token,
               locationId: defaultLocationId,
             );
+            // Store raw response in AuthState for backwards compatibility
             AuthState().saveLocationLightsZones(locationData);
+            // Parse and store in LocationDataService for typed access
+            await LocationDataService().loadFromApiResponse(locationData);
           } catch (e) {
             debugPrint('Failed to fetch location lights/zones: $e');
             // Non-fatal: continue to home screen
@@ -394,7 +398,7 @@ class _SignInScreenState extends State<SignInScreen>
 
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+          MaterialPageRoute(builder: (context) => const LightsScreen()),
           (route) => false,
         );
       }

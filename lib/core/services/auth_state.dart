@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:haven/core/services/location_data_service.dart';
 
 class AuthState extends ChangeNotifier {
   static final AuthState _instance = AuthState._internal();
@@ -197,6 +198,9 @@ class AuthState extends ChangeNotifier {
     _phoneNumber = null;
     _defaultLocationId = null;
     _locationLightsZones = null;
+
+    // Clear location data service
+    await LocationDataService().clear();
 
     // Clear from secure storage but preserve last email
     try {
