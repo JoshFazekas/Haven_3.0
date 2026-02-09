@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:haven/widgets/location_header.dart';
@@ -8,7 +7,6 @@ import 'package:haven/widgets/device_control_card.dart';
 import 'package:haven/widgets/light_zone_card.dart';
 import 'package:haven/widgets/image_view_content.dart';
 import 'package:haven/core/services/bluetooth_scan_service.dart';
-import 'package:haven/core/services/device_service.dart';
 import 'package:haven/screens/holiday_presets_screen.dart';
 import 'package:lottie/lottie.dart';
 
@@ -48,12 +46,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   StreamSubscription<NearbyHavenDevice>? _nearbyDeviceSubscription;
   bool _showNearbyDevicePopup = false;
   NearbyHavenDevice? _nearbyDevice;
-
-  // Debug state
-  final DeviceService _deviceService = DeviceService();
-  Map<String, dynamic>? _debugResponse;
-  bool _isLoadingDebug = false;
-  String? _debugError;
 
   // Devices list parsed from API response
   List<DeviceController> _devices = [];
@@ -144,129 +136,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     _dismissNearbyDevicePopup();
   }
 
-  Future<void> _fetchDevicesByLocation() async {
-    if (!mounted) return;
-
-    setState(() {
-      _isLoadingDebug = true;
-      _debugError = null;
-    });
-
-    try {
-      // Using locationId 28791 for testing
-      final response = await _deviceService.getDevicesByLocation(28791);
-
-      // Parse devices from the response body
-      List<DeviceController> parsedDevices = [];
-      if (response['body'] != null && response['body'] is List) {
-        parsedDevices = (response['body'] as List)
-            .map(
-              (json) => DeviceController.fromJson(json as Map<String, dynamic>),
-            )
-            .toList();
-      }
-
-      if (!mounted) return;
-
-      setState(() {
-        _debugResponse = response;
-        _devices = parsedDevices;
-        _isLoadingDebug = false;
-        // Trigger load-in animations if devices were just loaded
-        if (parsedDevices.isNotEmpty) {
-          _hasLoadedDevices = true;
-        }
-      });
-      debugPrint('Devices response: $response');
-      debugPrint('Parsed ${parsedDevices.length} devices');
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _debugError = e.toString();
-        _devices = [];
-        _isLoadingDebug = false;
-      });
-      debugPrint('Error fetching devices: $e');
-    }
-  }
-
-  void _showDebugDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: const Text(
-          'Debug Response',
-          style: TextStyle(color: Colors.white, fontFamily: 'SpaceMono'),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_isLoadingDebug)
-                const Center(child: CircularProgressIndicator())
-              else if (_debugError != null)
-                Text(
-                  'Error: $_debugError',
-                  style: const TextStyle(
-                    color: Colors.redAccent,
-                    fontFamily: 'SpaceMono',
-                    fontSize: 12,
-                  ),
-                )
-              else if (_debugResponse != null)
-                Text(
-                  const JsonEncoder.withIndent('  ').convert(_debugResponse),
-                  style: const TextStyle(
-                    color: Colors.greenAccent,
-                    fontFamily: 'SpaceMono',
-                    fontSize: 11,
-                  ),
-                )
-              else
-                const Text(
-                  'No data yet. Pull to refresh to fetch devices.',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontFamily: 'SpaceMono',
-                    fontSize: 12,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close', style: TextStyle(color: Colors.white)),
-          ),
-          TextButton(
-            onPressed: () {
-              if (_debugResponse != null) {
-                Clipboard.setData(
-                  ClipboardData(
-                    text: const JsonEncoder.withIndent(
-                      '  ',
-                    ).convert(_debugResponse),
-                  ),
-                );
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Copied to clipboard')),
-                );
-              }
-            },
-            child: const Text(
-              'Copy',
-              style: TextStyle(color: Colors.blueAccent),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   void dispose() {
     _lottieController?.dispose();
@@ -309,8 +178,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       _lottieController?.reset();
       _lottieController?.forward();
 
-      // Fetch devices asynchronously without awaiting
-      _fetchDevicesByLocation().then((_) {
+      // TODO: Fetch devices when device service is re-implemented
+      Future.delayed(const Duration(milliseconds: 500)).then((_) {
         debugPrint('Refreshed!');
         if (mounted) {
           // Fade out the animation after data is loaded
@@ -519,30 +388,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               onConnect: _onConnectToDevice,
             ),
 
-          // Debug button - shows API response (hidden)
-          // Positioned(
-          //   bottom: 100,
-          //   right: 20,
-          //   child: FloatingActionButton.small(
-          //     heroTag: 'debug_button',
-          //     backgroundColor: _debugResponse != null
-          //         ? Colors.greenAccent.withOpacity(0.8)
-          //         : _debugError != null
-          //         ? Colors.redAccent.withOpacity(0.8)
-          //         : Colors.grey.withOpacity(0.5),
-          //     onPressed: _showDebugDialog,
-          //     child: _isLoadingDebug
-          //         ? const SizedBox(
-          //             width: 20,
-          //             height: 20,
-          //             child: CircularProgressIndicator(
-          //               strokeWidth: 2,
-          //               color: Colors.white,
-          //             ),
-          //           )
-          //         : const Icon(Icons.bug_report, color: Colors.white, size: 20),
-          //   ),
-          // ),
         ],
       ),
       bottomNavigationBar: _devices.isEmpty

@@ -22,7 +22,7 @@ class AuthService {
     String email,
     String password,
   ) async {
-    final endpoint = '$_baseUrl/Auth/Authenticate';
+    final endpoint = '$_baseUrl/Auth/authenticate';
     final body = {'userName': email, 'password': password};
 
     // Log the request
@@ -36,7 +36,7 @@ class AuthService {
     try {
       final response = await http.post(
         Uri.parse(endpoint),
-        headers: _defaultHeaders,
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
 
