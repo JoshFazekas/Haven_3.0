@@ -2,23 +2,33 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "HavenApp-LOCAL",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main_local.dart",
+      "args": ["--flavor", "local"]
+    },
+    {
       "name": "HavenApp-DEV",
       "request": "launch",
       "type": "dart",
-      "program": "lib/main_dev.dart"
+      "program": "lib/main_dev.dart",
+      "args": ["--flavor", "dev"]
     },
     {
       "name": "HavenApp-PROD",
       "request": "launch",
       "type": "dart",
-      "program": "lib/main_prod.dart"
+      "program": "lib/main_prod.dart",
+      "args": ["--flavor", "prod"]
     },
     {
       "name": "HavenApp-PROD (release mode)",
       "request": "launch",
       "type": "dart",
       "program": "lib/main_prod.dart",
-      "flutterMode": "release"
+      "flutterMode": "release",
+      "args": ["--flavor", "prod"]
     }
   ]
 }

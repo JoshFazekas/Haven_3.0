@@ -4,10 +4,10 @@ import 'package:haven/core/theme/app_theme.dart';
 import 'package:haven/screens/splash_screen.dart';
 import 'package:haven/widgets/dev_indicator.dart';
 
-/// Entry point for HavenApp-DEV scheme
-/// Targets: https://dev-api.havenlighting.com
+/// Entry point for HavenApp-LOCAL scheme
+/// Targets: http://localhost:5001
 void main() {
-  EnvironmentConfig.init(Environment.dev);
+  EnvironmentConfig.init(Environment.local);
   runApp(const HavenApp());
 }
 
@@ -17,7 +17,7 @@ class HavenApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Haven (${EnvironmentConfig.badgeLabel})',
+      title: 'Haven (LOCAL)',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       builder: (context, child) {

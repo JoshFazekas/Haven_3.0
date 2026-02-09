@@ -2,14 +2,14 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:haven/core/config/environment.dart';
 
-/// A small frosted-glass "DEV" bubble that floats below the Dynamic Island.
-/// Only visible when running in the dev environment.
+/// A small frosted-glass environment badge that floats below the Dynamic Island.
+/// Only visible when running in non-production environments (dev, local).
 class DevIndicator extends StatelessWidget {
   const DevIndicator({super.key});
 
   @override
   Widget build(BuildContext context) {
-    if (!EnvironmentConfig.isDev) return const SizedBox.shrink();
+    if (!EnvironmentConfig.showBadge) return const SizedBox.shrink();
 
     final topPadding = MediaQuery.of(context).viewPadding.top;
 
@@ -34,7 +34,7 @@ class DevIndicator extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  'DEV',
+                  EnvironmentConfig.badgeLabel,
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
                     fontSize: 10,
