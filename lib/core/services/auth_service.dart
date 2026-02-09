@@ -186,6 +186,113 @@ class AuthService {
       return false;
     }
   }
+
+  /// Fetches user info from /api/User/Info
+  /// Requires a valid bearer token and the user's email
+  /// Returns the full response map containing user data
+  Future<Map<String, dynamic>> getUserInfo({
+    required String bearerToken,
+    required String email,
+  }) async {
+    final endpoint = '$_baseUrl/User/Info';
+
+    final headers = {
+      'Content-Type': 'application/json-patch+json',
+      'Authorization': 'Bearer $bearerToken',
+    };
+
+    final body = jsonEncode({'email': email});
+
+    // Log the request
+    _logger.logRequest(
+      method: 'POST',
+      endpoint: endpoint,
+      headers: headers,
+      body: {'email': email},
+    );
+
+    try {
+      final response = await http.post(
+        Uri.parse(endpoint),
+        headers: headers,
+        body: body,
+      );
+
+      // Log the response
+      _logger.logResponse(
+        method: 'POST',
+        endpoint: endpoint,
+        statusCode: response.statusCode,
+        body: response.body,
+      );
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded['success'] == true) {
+          return decoded;
+        } else {
+          throw AuthException('Failed to fetch user info: ${decoded['message']}');
+        }
+      } else {
+        throw AuthException('Failed to fetch user info. Status: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (e is AuthException) rethrow;
+      _logger.logError(method: 'POST', endpoint: endpoint, error: e);
+      throw AuthException('Failed to fetch user info. Please try again.');
+    }
+  }
+
+  /// Fetches location lights and zones from /api/locationlightszones
+  /// Requires a valid bearer token and a location ID
+  /// Returns the full response map
+  Future<Map<String, dynamic>> getLocationLightsZones({
+    required String bearerToken,
+    required int locationId,
+  }) async {
+    final endpoint = '$_baseUrl/locationlightszones';
+
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $bearerToken',
+    };
+
+    final body = jsonEncode({'locationId': locationId});
+
+    // Log the request
+    _logger.logRequest(
+      method: 'POST',
+      endpoint: endpoint,
+      headers: headers,
+      body: {'locationId': locationId},
+    );
+
+    try {
+      final response = await http.post(
+        Uri.parse(endpoint),
+        headers: headers,
+        body: body,
+      );
+
+      // Log the response
+      _logger.logResponse(
+        method: 'POST',
+        endpoint: endpoint,
+        statusCode: response.statusCode,
+        body: response.body,
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw AuthException('Failed to fetch location lights/zones. Status: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (e is AuthException) rethrow;
+      _logger.logError(method: 'POST', endpoint: endpoint, error: e);
+      throw AuthException('Failed to fetch location data. Please try again.');
+    }
+  }
 }
 
 class AuthException implements Exception {

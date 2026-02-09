@@ -340,6 +340,7 @@ class _SignInScreenState extends State<SignInScreen>
       final username = result['username'] as String?;
       final userType = result['userType'] as int?;
 
+      // Step 1: Store auth credentials
       await AuthState().login(
         token: token,
         refreshToken: refreshToken,
@@ -349,6 +350,47 @@ class _SignInScreenState extends State<SignInScreen>
         email: email,
         password: password,
       );
+
+      // Step 2: Fetch user info from /api/User/Info
+      try {
+        final userInfoResponse = await _authService.getUserInfo(
+          bearerToken: token,
+          email: email,
+        );
+
+        final userData = userInfoResponse['data'] as Map<String, dynamic>;
+        final fullName = userData['fullName'] as String? ?? '';
+        final phoneNumber = userData['phoneNumber'] as String? ?? '';
+        final defaultLocationId = userData['defaultLocationId'] as int? ?? 0;
+        final userEmail = userData['email'] as String? ?? email;
+        final infoUserId = userData['userId'] as int? ?? userId;
+
+        // Store user info
+        await AuthState().saveUserInfo(
+          fullName: fullName,
+          phoneNumber: phoneNumber,
+          defaultLocationId: defaultLocationId,
+          email: userEmail,
+          userId: infoUserId,
+        );
+
+        // Step 3: Fetch location lights/zones using the default location ID
+        if (defaultLocationId > 0) {
+          try {
+            final locationData = await _authService.getLocationLightsZones(
+              bearerToken: token,
+              locationId: defaultLocationId,
+            );
+            AuthState().saveLocationLightsZones(locationData);
+          } catch (e) {
+            debugPrint('Failed to fetch location lights/zones: $e');
+            // Non-fatal: continue to home screen
+          }
+        }
+      } catch (e) {
+        debugPrint('Failed to fetch user info: $e');
+        // Non-fatal: continue to home screen with basic auth data
+      }
 
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
