@@ -14,6 +14,8 @@ class LightZoneCard extends StatefulWidget {
   final bool? forceIsOn; // External control for on/off state
   final bool? initialIsOn; // Initial on/off from API lighting status
   final double? initialBrightness; // Initial brightness % from API (0–100)
+  final String? colorCapability; // "Legacy" or "Extended"
+  final String? lightType; // e.g. "TRIM LIGHT", "K SERIES"
 
   const LightZoneCard({
     super.key,
@@ -26,6 +28,8 @@ class LightZoneCard extends StatefulWidget {
     this.forceIsOn,
     this.initialIsOn,
     this.initialBrightness,
+    this.colorCapability,
+    this.lightType,
   });
 
   @override
@@ -103,6 +107,8 @@ class _LightZoneCardState extends State<LightZoneCard>
           lightId: widget.lightId,
           zoneId: widget.zoneId,
           locationId: widget.locationId,
+          colorCapability: widget.colorCapability,
+          lightType: widget.lightType,
           initialTabIndex: 0,
           initialColor: _selectedColor,
           initialIsOn: _isOn,

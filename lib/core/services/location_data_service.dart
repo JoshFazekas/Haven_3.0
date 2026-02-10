@@ -19,6 +19,7 @@ class LightZoneItem {
   final String type; // e.g. "FULL COLOR", "K SERIES", "TRIM LIGHT", "L902"
   final int? lightingStatusId; // e.g. 1 = OFF, 3 = SOLID_COLOR, etc.
   final String? lightingStatus; // e.g. "OFF", "SOLID_COLOR"
+  final String? colorCapability; // "Legacy" or "Extended"
 
   LightZoneItem({
     required this.itemType,
@@ -30,6 +31,7 @@ class LightZoneItem {
     required this.type,
     this.lightingStatusId,
     this.lightingStatus,
+    this.colorCapability,
   });
 
   bool get isZone => itemType == 'Zone';
@@ -74,6 +76,7 @@ class LightZoneItem {
       type: json['type'] as String? ?? '',
       lightingStatusId: json['lightingStatusId'] as int?,
       lightingStatus: json['lightingStatus'] as String?,
+      colorCapability: json['colorCapability'] as String?,
     );
   }
 
@@ -87,6 +90,7 @@ class LightZoneItem {
         'type': type,
         'lightingStatusId': lightingStatusId,
         'lightingStatus': lightingStatus,
+        'colorCapability': colorCapability,
       };
 }
 

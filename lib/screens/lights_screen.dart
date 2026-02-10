@@ -860,6 +860,8 @@ class _LightsScreenState extends State<LightsScreen>
             forceIsOn: _forceAllLightsState,
             initialIsOn: zone.isCurrentlyOn,
             initialBrightness: zone.brightnessPercent.toDouble(),
+            colorCapability: zone.colorCapability,
+            lightType: zone.type,
           ),
         ),
       );
@@ -878,6 +880,8 @@ class _LightsScreenState extends State<LightsScreen>
             forceIsOn: _forceAllLightsState,
             initialIsOn: light.isCurrentlyOn,
             initialBrightness: light.brightnessPercent.toDouble(),
+            colorCapability: light.colorCapability,
+            lightType: light.type,
           ),
         ),
       );
