@@ -86,14 +86,14 @@ class ColorCapability {
 
   /// Each entry: { 'id': int, 'name': String, 'color': Color }
   static const List<Map<String, dynamic>> legacyWhites = [
-    {'id': 1, 'name': '2700K', 'color': Color(0xFFFFAE5E)},
-    {'id': 2, 'name': '3000K', 'color': Color(0xFFFFC880)},
-    {'id': 3, 'name': '3500K', 'color': Color(0xFFFFDCA8)},
-    {'id': 4, 'name': '3700K', 'color': Color(0xFFFFE2B8)},
-    {'id': 5, 'name': '4000K', 'color': Color(0xFFFFEBCC)},
-    {'id': 6, 'name': '4100K', 'color': Color(0xFFFFEDD4)},
-    {'id': 7, 'name': '4700K', 'color': Color(0xFFF5F0E0)},
-    {'id': 8, 'name': '5000K', 'color': Color(0xFFF0F0F0)},
+    {'id': 1, 'name': '2700K', 'color': Color(0xFFF8E96C)},
+    {'id': 2, 'name': '3000K', 'color': Color(0xFFF6F08E)},
+    {'id': 3, 'name': '3500K', 'color': Color(0xFFF4F4AC)},
+    {'id': 4, 'name': '3700K', 'color': Color(0xFFF2F4C2)},
+    {'id': 5, 'name': '4000K', 'color': Color(0xFFECF5DA)},
+    {'id': 6, 'name': '4100K', 'color': Color(0xFFE3F3E9)},
+    {'id': 7, 'name': '4700K', 'color': Color(0xFFDDF1F2)},
+    {'id': 8, 'name': '5000K', 'color': Color(0xFFD6EFF6)},
   ];
 
   // ───────────────── Palette Builders ─────────────────

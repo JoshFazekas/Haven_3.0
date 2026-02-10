@@ -39,14 +39,14 @@ class _LightZoneCardState extends State<LightZoneCard>
 
   // White temperature color values to detect (must match ColorCapability whites)
   static const Set<int> _whiteTemperatureValues = {
-    0xFFFFAE5E, // 2700K
-    0xFFFFC880, // 3000K
-    0xFFFFDCA8, // 3500K
-    0xFFFFE2B8, // 3700K
-    0xFFFFEBCC, // 4000K
-    0xFFFFEDD4, // 4100K
-    0xFFF5F0E0, // 4700K
-    0xFFF0F0F0, // 5000K
+    0xFFF8E96C, // 2700K
+    0xFFF6F08E, // 3000K
+    0xFFF4F4AC, // 3500K
+    0xFFF2F4C2, // 3700K
+    0xFFECF5DA, // 4000K
+    0xFFE3F3E9, // 4100K
+    0xFFDDF1F2, // 4700K
+    0xFFD6EFF6, // 5000K
   };
 
   bool _isWhiteTemperature(Color color) {
