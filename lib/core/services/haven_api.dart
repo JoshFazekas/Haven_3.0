@@ -49,10 +49,7 @@ class HavenApi {
     if (t == null || t.isEmpty) {
       throw HavenApiException('No auth token available. Please sign in again.');
     }
-    return {
-      ..._jsonHeaders,
-      'Authorization': 'Bearer $t',
-    };
+    return {..._jsonHeaders, 'Authorization': 'Bearer $t'};
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -71,8 +68,83 @@ class HavenApi {
     final url = '$baseUrl$path';
     final body = {'userName': email, 'password': password};
 
-    return _post(url, headers: _portalHeaders, body: body, label: 'authenticate');
+    return _post(
+      url,
+      headers: _portalHeaders,
+      body: body,
+      label: 'authenticate',
+    );
   }
+
+  /// **POST** `/api/Auth/refresh`
+  ///
+  /// Exchanges the stored refresh token for a **new** bearer token.
+  /// On success the new token + refreshToken are persisted via
+  /// [AuthState.updateToken] so every subsequent request picks them up.
+  ///
+  /// Returns `true` if the refresh succeeded, `false` otherwise.
+  Future<bool> refreshTokens() async {
+    final authState = AuthState();
+    final refreshToken = authState.refreshToken;
+    final userId = authState.userId;
+
+    if (refreshToken == null || refreshToken.isEmpty || userId == null) {
+      debugPrint('HavenApi: Cannot refresh — no refreshToken or userId');
+      return false;
+    }
+
+    const path = '/api/Auth/refresh';
+    final url = '$baseUrl$path';
+    final body = jsonEncode({'userId': userId, 'refreshToken': refreshToken});
+
+    _logger.logRequest(
+      method: 'POST',
+      endpoint: url,
+      headers: _jsonHeaders,
+      body: {'userId': userId, 'refreshToken': '***'},
+    );
+
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: _jsonHeaders,
+        body: body,
+      );
+
+      _logger.logResponse(
+        method: 'POST',
+        endpoint: url,
+        statusCode: response.statusCode,
+        body: response.body,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final newToken = data['token'] as String?;
+        final newRefreshToken = data['refreshToken'] as String?;
+        final newUserId = data['id'] as int? ?? userId;
+
+        if (newToken != null && newToken.isNotEmpty) {
+          await authState.updateToken(
+            token: newToken,
+            refreshToken: newRefreshToken ?? refreshToken,
+            userId: newUserId,
+          );
+          debugPrint('HavenApi: Token refreshed successfully');
+          return true;
+        }
+      }
+
+      debugPrint('HavenApi: Token refresh failed (${response.statusCode})');
+      return false;
+    } catch (e) {
+      debugPrint('HavenApi: Token refresh error: $e');
+      return false;
+    }
+  }
+
+  /// Whether a refresh is already in-flight (prevents concurrent refreshes).
+  bool _isRefreshing = false;
 
   // ═══════════════════════════════════════════════════════════
   //  2.  USER  —  /api/User
@@ -131,7 +203,12 @@ class HavenApi {
     final url = '$baseUrl$path';
     final body = {'locationId': locationId};
 
-    return _post(url, headers: _authHeaders(token: token), body: body, label: 'getLocationLightsZones');
+    return _post(
+      url,
+      headers: _authHeaders(token: token),
+      body: body,
+      label: 'getLocationLightsZones',
+    );
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -154,7 +231,12 @@ class HavenApi {
     final url = '$baseUrl$path';
     final body = {'id': id, 'type': type, 'colorId': colorId};
 
-    return _postRaw(url, headers: _authHeaders(), body: body, label: 'SetColor');
+    return _postRaw(
+      url,
+      headers: _authHeaders(),
+      body: body,
+      label: 'SetColor',
+    );
   }
 
   /// **POST** `/api/Commands/Off`
@@ -163,10 +245,7 @@ class HavenApi {
   ///
   /// - [id]   – `lightId` or zone ID from location data.
   /// - [type] – `"Light"` or `"Zone"`.
-  Future<http.Response> turnOff({
-    required int id,
-    required String type,
-  }) async {
+  Future<http.Response> turnOff({required int id, required String type}) async {
     const path = '/api/Commands/Off';
     final url = '$baseUrl$path';
     final body = {'id': id, 'type': type};
@@ -180,15 +259,36 @@ class HavenApi {
   ///
   /// - [id]   – `lightId` or zone ID from location data.
   /// - [type] – `"Light"` or `"Zone"`.
-  Future<http.Response> turnOn({
-    required int id,
-    required String type,
-  }) async {
+  Future<http.Response> turnOn({required int id, required String type}) async {
     const path = '/api/Commands/On';
     final url = '$baseUrl$path';
     final body = {'id': id, 'type': type};
 
     return _postRaw(url, headers: _authHeaders(), body: body, label: 'On');
+  }
+
+  /// **POST** `/api/Commands/Brightness`
+  ///
+  /// Sets the brightness of a light, zone, or entire location.
+  ///
+  /// - [id]         – `lightId`, zone ID, or location ID.
+  /// - [type]       – `"Light"`, `"Zone"`, or `"Location"`.
+  /// - [brightness] – Brightness level 1–10 (maps to 10%–100%).
+  Future<http.Response> setBrightness({
+    required int id,
+    required String type,
+    required int brightness,
+  }) async {
+    const path = '/api/Commands/Brightness';
+    final url = '$baseUrl$path';
+    final body = {'id': id, 'type': type, 'brightness': brightness};
+
+    return _postRaw(
+      url,
+      headers: _authHeaders(),
+      body: body,
+      label: 'Brightness',
+    );
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -204,21 +304,31 @@ class HavenApi {
     required String token,
     int controllerTypeId = 1,
   }) async {
-    final normalizedMac = macAddress.replaceAll(':', '').replaceAll('-', '').toUpperCase();
-    final path = '/api/Device/GetCredentials/$normalizedMac?controllerTypeId=$controllerTypeId';
+    final normalizedMac = macAddress
+        .replaceAll(':', '')
+        .replaceAll('-', '')
+        .toUpperCase();
+    final path =
+        '/api/Device/GetCredentials/$normalizedMac?controllerTypeId=$controllerTypeId';
     final url = '$baseUrl$path';
 
-    _logger.logRequest(method: 'GET', endpoint: url, headers: _authHeaders(token: token));
+    _logger.logRequest(
+      method: 'GET',
+      endpoint: url,
+      headers: _authHeaders(token: token),
+    );
 
     final response = await http.get(
       Uri.parse(url),
-      headers: {
-        ..._portalHeaders,
-        'Authorization': 'Bearer $token',
-      },
+      headers: {..._portalHeaders, 'Authorization': 'Bearer $token'},
     );
 
-    _logger.logResponse(method: 'GET', endpoint: url, statusCode: response.statusCode, body: response.body);
+    _logger.logResponse(
+      method: 'GET',
+      endpoint: url,
+      statusCode: response.statusCode,
+      body: response.body,
+    );
 
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);
@@ -232,7 +342,9 @@ class HavenApi {
     } else if (response.statusCode == 404) {
       throw HavenApiException('Device not found. MAC: $normalizedMac');
     } else {
-      throw HavenApiException('Failed to get credentials (${response.statusCode}).');
+      throw HavenApiException(
+        'Failed to get credentials (${response.statusCode}).',
+      );
     }
   }
 
@@ -259,7 +371,12 @@ class HavenApi {
     final url = '$baseUrl$path';
     final body = {'deviceId': deviceId, 'locationId': locationId};
 
-    _logger.logRequest(method: 'POST', endpoint: url, headers: _authHeaders(token: token), body: body);
+    _logger.logRequest(
+      method: 'POST',
+      endpoint: url,
+      headers: _authHeaders(token: token),
+      body: body,
+    );
 
     final response = await http.post(
       Uri.parse(url),
@@ -267,14 +384,25 @@ class HavenApi {
       body: jsonEncode(body),
     );
 
-    _logger.logResponse(method: 'POST', endpoint: url, statusCode: response.statusCode, body: response.body);
+    _logger.logResponse(
+      method: 'POST',
+      endpoint: url,
+      statusCode: response.statusCode,
+      body: response.body,
+    );
 
-    if (response.statusCode == 200 || response.statusCode == 201 || response.statusCode == 409) {
-      debugPrint('HavenApi: addDeviceToLocation succeeded (${response.statusCode})');
+    if (response.statusCode == 200 ||
+        response.statusCode == 201 ||
+        response.statusCode == 409) {
+      debugPrint(
+        'HavenApi: addDeviceToLocation succeeded (${response.statusCode})',
+      );
     } else if (response.statusCode == 401) {
       throw HavenApiException('Authentication failed. Please sign in again.');
     } else {
-      throw HavenApiException('Failed to add device to location (${response.statusCode}).');
+      throw HavenApiException(
+        'Failed to add device to location (${response.statusCode}).',
+      );
     }
   }
 
@@ -282,61 +410,155 @@ class HavenApi {
   //  HELPERS  —  shared request logic
   // ═══════════════════════════════════════════════════════════
 
+  /// Attempts to refresh the token (once) if a 401 is not already being
+  /// handled.  Returns `true` when a fresh token was stored.
+  Future<bool> _tryRefreshToken() async {
+    if (_isRefreshing) return false; // another call is already refreshing
+    _isRefreshing = true;
+    try {
+      return await refreshTokens();
+    } finally {
+      _isRefreshing = false;
+    }
+  }
+
+  /// Rebuilds the header map with the **current** bearer token so that
+  /// a retried request picks up the freshly-refreshed token.
+  Map<String, String> _refreshAuthHeader(Map<String, String> original) {
+    final token = AuthState().token;
+    if (token == null || token.isEmpty) return original;
+    return {...original, 'Authorization': 'Bearer $token'};
+  }
+
   /// Sends a POST and returns the **decoded JSON** response.
+  ///
+  /// If the server responds with **401** and a refresh token is available
+  /// the method will attempt a single token refresh and retry the request.
   Future<Map<String, dynamic>> _post(
     String url, {
     required Map<String, String> headers,
     required Map<String, dynamic> body,
     required String label,
   }) async {
-    _logger.logRequest(method: 'POST', endpoint: url, headers: headers, body: body);
+    _logger.logRequest(
+      method: 'POST',
+      endpoint: url,
+      headers: headers,
+      body: body,
+    );
 
     try {
-      final response = await http.post(
+      var response = await http.post(
         Uri.parse(url),
         headers: headers,
         body: jsonEncode(body),
       );
 
-      _logger.logResponse(method: 'POST', endpoint: url, statusCode: response.statusCode, body: response.body);
+      _logger.logResponse(
+        method: 'POST',
+        endpoint: url,
+        statusCode: response.statusCode,
+        body: response.body,
+      );
+
+      // ── 401 → try token refresh then retry once ──
+      if (response.statusCode == 401) {
+        final refreshed = await _tryRefreshToken();
+        if (refreshed) {
+          debugPrint('HavenApi: Retrying $label after token refresh');
+          final retryHeaders = _refreshAuthHeader(headers);
+          response = await http.post(
+            Uri.parse(url),
+            headers: retryHeaders,
+            body: jsonEncode(body),
+          );
+
+          _logger.logResponse(
+            method: 'POST (retry)',
+            endpoint: url,
+            statusCode: response.statusCode,
+            body: response.body,
+          );
+        }
+      }
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else if (response.statusCode == 401) {
         throw HavenApiException('Authentication failed. Please sign in again.');
       } else {
-        throw HavenApiException('$label failed (${response.statusCode}): ${response.body}');
+        throw HavenApiException(
+          '$label failed (${response.statusCode}): ${response.body}',
+        );
       }
     } catch (e) {
       if (e is HavenApiException) rethrow;
       _logger.logError(method: 'POST', endpoint: url, error: e);
-      throw HavenApiException('$label failed. Please check your connection and try again.');
+      throw HavenApiException(
+        '$label failed. Please check your connection and try again.',
+      );
     }
   }
 
   /// Sends a POST and returns the **raw [http.Response]** so the caller
   /// can inspect status codes directly (useful for commands that return 204).
+  ///
+  /// If the server responds with **401** and a refresh token is available
+  /// the method will attempt a single token refresh and retry the request.
   Future<http.Response> _postRaw(
     String url, {
     required Map<String, String> headers,
     required Map<String, dynamic> body,
     required String label,
   }) async {
-    _logger.logRequest(method: 'POST', endpoint: url, headers: headers, body: body);
+    _logger.logRequest(
+      method: 'POST',
+      endpoint: url,
+      headers: headers,
+      body: body,
+    );
 
     try {
-      final response = await http.post(
+      var response = await http.post(
         Uri.parse(url),
         headers: headers,
         body: jsonEncode(body),
       );
 
-      _logger.logResponse(method: 'POST', endpoint: url, statusCode: response.statusCode, body: response.body);
+      _logger.logResponse(
+        method: 'POST',
+        endpoint: url,
+        statusCode: response.statusCode,
+        body: response.body,
+      );
+
+      // ── 401 → try token refresh then retry once ──
+      if (response.statusCode == 401) {
+        final refreshed = await _tryRefreshToken();
+        if (refreshed) {
+          debugPrint('HavenApi: Retrying $label after token refresh');
+          final retryHeaders = _refreshAuthHeader(headers);
+          response = await http.post(
+            Uri.parse(url),
+            headers: retryHeaders,
+            body: jsonEncode(body),
+          );
+
+          _logger.logResponse(
+            method: 'POST (retry)',
+            endpoint: url,
+            statusCode: response.statusCode,
+            body: response.body,
+          );
+        }
+      }
 
       return response;
     } catch (e) {
       _logger.logError(method: 'POST', endpoint: url, error: e);
-      throw HavenApiException('$label failed. Please check your connection and try again.');
+      throw HavenApiException(
+        '$label failed. Please check your connection and try again.',
+      );
     }
   }
 }

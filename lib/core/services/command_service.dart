@@ -158,6 +158,102 @@ class CommandService {
 
   // ─────────────────────── Turn Off (single) ───────────────────────
 
+  /// Sends the **Brightness** command for a single light or zone.
+  ///
+  /// [brightnessId] is the API value 1–10 (maps to 10%–100%).
+  ///
+  /// ```dart
+  /// await CommandService().setBrightness(id: 1022, type: 'Light', brightnessId: 8);
+  /// ```
+  Future<void> setBrightness({
+    required int id,
+    required String type,
+    required int brightnessId,
+  }) async {
+    // ── 1. Optimistic update ──
+    if (type == 'Light') {
+      LocationDataService().optimisticSetBrightness(
+        lightId: id,
+        brightnessId: brightnessId,
+      );
+    }
+
+    // ── 2. Fire the API call ──
+    try {
+      final response = await HavenApi().setBrightness(
+        id: id,
+        type: type,
+        brightness: brightnessId,
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint(
+          'CommandService: Brightness succeeded — id=$id, type=$type, brightness=$brightnessId',
+        );
+      } else if (response.statusCode == 401) {
+        throw CommandException('Authentication failed. Please sign in again.');
+      } else {
+        throw CommandException(
+          'Brightness failed (${response.statusCode}): ${response.body}',
+        );
+      }
+    } catch (e) {
+      if (e is CommandException) rethrow;
+      throw CommandException(
+        'Failed to set brightness. Please check your connection and try again.',
+      );
+    }
+  }
+
+  // ────────────────── Set Brightness All (Location) ──────────────────
+
+  /// Sends the **Brightness** command for the **entire location**.
+  ///
+  /// [brightnessId] is the API value 1–10 (maps to 10%–100%).
+  ///
+  /// ```dart
+  /// await CommandService().setAllBrightness(brightnessId: 8);
+  /// ```
+  Future<void> setAllBrightness({required int brightnessId}) async {
+    final locationId = LocationDataService().selectedLocationId;
+    if (locationId == null) {
+      throw CommandException('No location selected.');
+    }
+
+    // ── 1. Optimistic update ──
+    LocationDataService().optimisticSetBrightnessAll(
+      brightnessId: brightnessId,
+    );
+
+    // ── 2. Fire the API call ──
+    try {
+      final response = await HavenApi().setBrightness(
+        id: locationId,
+        type: 'Location',
+        brightness: brightnessId,
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint(
+          'CommandService: All Brightness succeeded — locationId=$locationId, brightness=$brightnessId',
+        );
+      } else if (response.statusCode == 401) {
+        throw CommandException('Authentication failed. Please sign in again.');
+      } else {
+        throw CommandException(
+          'All Brightness failed (${response.statusCode}): ${response.body}',
+        );
+      }
+    } catch (e) {
+      if (e is CommandException) rethrow;
+      throw CommandException(
+        'Failed to set brightness for all lights. Please check your connection and try again.',
+      );
+    }
+  }
+
+  // ─────────────────────── Turn Off ───────────────────────
+
   /// Sends the **Off** command for a single light or zone.
   ///
   /// Flow: optimistic update → fire-and-forget API call (no refresh).

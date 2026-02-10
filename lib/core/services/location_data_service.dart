@@ -499,6 +499,52 @@ class LocationDataService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Optimistically update a single light's brightness in the local data.
+  ///
+  /// [brightnessId] is the API value 1–10 (maps to 10%–100%).
+  void optimisticSetBrightness({
+    required int lightId,
+    required int brightnessId,
+  }) {
+    final idx = _zonesAndLights.indexWhere((item) => item.lightId == lightId);
+    if (idx == -1) return;
+
+    _pendingExpectations[lightId] = _OptimisticExpectation(
+      expectedBrightnessId: brightnessId,
+      createdAt: DateTime.now(),
+    );
+
+    final old = _zonesAndLights[idx];
+    _zonesAndLights[idx] = old.copyWith(lightBrightnessId: brightnessId);
+
+    debugPrint(
+      'LocationDataService: Optimistic brightness — '
+      'light $lightId → brightnessId=$brightnessId',
+    );
+    notifyListeners();
+  }
+
+  /// Optimistically update brightness on **all** lights and zones.
+  void optimisticSetBrightnessAll({required int brightnessId}) {
+    final now = DateTime.now();
+    for (int i = 0; i < _zonesAndLights.length; i++) {
+      final item = _zonesAndLights[i];
+      if (item.lightId != null) {
+        _pendingExpectations[item.lightId!] = _OptimisticExpectation(
+          expectedBrightnessId: brightnessId,
+          createdAt: now,
+        );
+      }
+      _zonesAndLights[i] = item.copyWith(lightBrightnessId: brightnessId);
+    }
+
+    debugPrint(
+      'LocationDataService: Optimistic brightness ALL — '
+      '${_zonesAndLights.length} items → brightnessId=$brightnessId',
+    );
+    notifyListeners();
+  }
+
   /// Switch to a different location. Clears old data, fetches fresh data
   /// from the API, and stores the result.
   ///
@@ -613,6 +659,8 @@ class LocationDataService extends ChangeNotifier {
             ? (expectation.expectedStatusId == 1 ? 'OFF' : 'SOLID_COLOR')
             : old.lightingStatus,
         colorId: expectation.expectedColorId ?? old.colorId,
+        lightBrightnessId:
+            expectation.expectedBrightnessId ?? old.lightBrightnessId,
       );
     }
   }
@@ -763,12 +811,16 @@ class _OptimisticExpectation {
   /// The `colorId` we expect (null if the command didn't change the color).
   final int? expectedColorId;
 
+  /// The `lightBrightnessId` we expect (1–10, null if unchanged).
+  final int? expectedBrightnessId;
+
   /// When this expectation was created.
   final DateTime createdAt;
 
   _OptimisticExpectation({
     this.expectedStatusId,
     this.expectedColorId,
+    this.expectedBrightnessId,
     required this.createdAt,
   });
 
@@ -778,6 +830,10 @@ class _OptimisticExpectation {
       return false;
     }
     if (expectedColorId != null && item.colorId != expectedColorId) {
+      return false;
+    }
+    if (expectedBrightnessId != null &&
+        item.lightBrightnessId != expectedBrightnessId) {
       return false;
     }
     return true;

@@ -323,6 +323,27 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     setState(() {
       _brightness = brightness;
     });
+
+    // Convert 0-100 slider value → brightnessId 1-10
+    final brightnessId = (brightness / 10).round().clamp(1, 10);
+
+    if (widget.isAllLightsMode) {
+      CommandService().setAllBrightness(brightnessId: brightnessId).catchError((
+        e,
+      ) {
+        debugPrint('SetAllBrightness failed: $e');
+      });
+    } else {
+      final id = widget.lightId ?? widget.zoneId;
+      final type = widget.lightId != null ? 'Light' : 'Zone';
+      if (id != null) {
+        CommandService()
+            .setBrightness(id: id, type: type, brightnessId: brightnessId)
+            .catchError((e) {
+              debugPrint('SetBrightness failed: $e');
+            });
+      }
+    }
   }
 
   @override

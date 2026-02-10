@@ -11,6 +11,7 @@ import 'package:haven/core/services/command_service.dart';
 import 'package:haven/core/services/location_data_service.dart';
 import 'package:haven/screens/holiday_presets_screen.dart';
 import 'package:haven/screens/light_control_wrapper.dart';
+import 'package:haven/widgets/brightness_popup.dart';
 import 'package:lottie/lottie.dart';
 
 // Import threshold constant
@@ -766,6 +767,9 @@ class _LightsScreenState extends State<LightsScreen>
                 onColorPaletteTap: () {
                   _openAllLightsColorPalette();
                 },
+                onBrightnessTap: () {
+                  _openAllLightsBrightnessPopup();
+                },
                 onAllLightsOn: () {
                   setState(() {
                     _forceAllLightsState = true;
@@ -965,6 +969,21 @@ class _LightsScreenState extends State<LightsScreen>
         ),
       ),
     );
+  }
+
+  /// Shows a frosted-glass brightness popup for the entire location.
+  ///
+  /// When the user picks a level (1–10 → 10%–100%) we send the
+  /// Brightness command with `type: "Location"`.
+  void _openAllLightsBrightnessPopup() async {
+    final brightnessId = await showBrightnessPopup(context);
+    if (brightnessId == null) return; // dismissed
+
+    CommandService().setAllBrightness(brightnessId: brightnessId).catchError((
+      e,
+    ) {
+      debugPrint('SetAllBrightness failed: $e');
+    });
   }
 
   /// Builds individual light/zone cards from LocationDataService data.

@@ -48,6 +48,7 @@ class DeviceControlCard extends StatefulWidget {
   final VoidCallback? onAllLightsOff;
   final VoidCallback? onImageViewTap;
   final VoidCallback? onColorPaletteTap;
+  final VoidCallback? onBrightnessTap;
   final bool isImageViewActive;
 
   /// Current state colors from each light/zone card.
@@ -61,6 +62,7 @@ class DeviceControlCard extends StatefulWidget {
     this.onAllLightsOff,
     this.onImageViewTap,
     this.onColorPaletteTap,
+    this.onBrightnessTap,
     this.isImageViewActive = false,
     this.lightColors = const [],
   });
@@ -170,6 +172,7 @@ class _DeviceControlCardState extends State<DeviceControlCard>
                   borderColor: AllLightsZonesStyle.brightnessBorder,
                   onTap: () {
                     HapticFeedback.mediumImpact();
+                    widget.onBrightnessTap?.call();
                     debugPrint('Brightness tapped');
                   },
                 ),
