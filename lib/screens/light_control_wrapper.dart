@@ -3,7 +3,46 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import '../widgets/effect_painters.dart';
+import '../core/utils/color_capability.dart';
 import 'create_effect_screen.dart';
+
+// ─────────────── Tab definition ───────────────
+
+/// The tabs a light control screen can show.
+enum _TabDefinition {
+  colors('Colors', 'assets/images/colorsicon.png'),
+  whites('Whites', 'assets/images/whitesicon.png'),
+  effects('Effects', ''),
+  music('Music', 'assets/images/music.png');
+
+  final String label;
+  final String iconAsset;
+  const _TabDefinition(this.label, this.iconAsset);
+}
+
+/// Determines which tabs to show based on capability and light type.
+///
+/// • Every light gets Colors + Whites (palette varies by capability).
+/// • X Series ("TRIM LIGHT") also gets Effects + Music.
+List<_TabDefinition> _buildAvailableTabs({
+  required String? colorCapability,
+  required String? lightType,
+}) {
+  final tabs = <_TabDefinition>[
+    _TabDefinition.colors,
+    _TabDefinition.whites,
+  ];
+
+  // X Series lights (TRIM LIGHT) get Effects + Music
+  final isXSeries =
+      lightType != null && lightType.toUpperCase() == 'TRIM LIGHT';
+  if (isXSeries) {
+    tabs.add(_TabDefinition.effects);
+    tabs.add(_TabDefinition.music);
+  }
+
+  return tabs;
+}
 
 class LightControlWrapper extends StatefulWidget {
   final String lightName;
@@ -23,6 +62,8 @@ class LightControlWrapper extends StatefulWidget {
   final double? initialBrightness;
   final int initialTabIndex;
   final Map<String, dynamic>? initialEffectConfig;
+  final String? colorCapability; // "Legacy" or "Extended"
+  final String? lightType; // e.g. "TRIM LIGHT", "K SERIES", etc.
 
   const LightControlWrapper({
     super.key,
@@ -37,6 +78,8 @@ class LightControlWrapper extends StatefulWidget {
     this.initialBrightness,
     this.initialTabIndex = 0,
     this.initialEffectConfig,
+    this.colorCapability,
+    this.lightType,
   });
 
   @override
@@ -49,6 +92,9 @@ class _LightControlWrapperState extends State<LightControlWrapper>
   late Color _selectedColor;
   late bool _isOn;
   late double _brightness;
+
+  /// Available tabs for this light, determined by colorCapability & lightType.
+  late List<_TabDefinition> _tabs;
   bool _showBrightnessIndicator = false;
   Timer? _fadeTimer;
   AnimationController? _sliderFadeController;
@@ -76,7 +122,11 @@ class _LightControlWrapperState extends State<LightControlWrapper>
   @override
   void initState() {
     super.initState();
-    _selectedTabIndex = widget.initialTabIndex;
+    _tabs = _buildAvailableTabs(
+      colorCapability: widget.colorCapability,
+      lightType: widget.lightType,
+    );
+    _selectedTabIndex = widget.initialTabIndex.clamp(0, _tabs.length - 1);
     _selectedColor = widget.initialColor ?? Colors.orange;
     _isOn = widget.initialIsOn ?? false;
     _brightness = widget.initialBrightness ?? 100.0;
@@ -168,18 +218,21 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     HapticFeedback.mediumImpact();
     
     // Reset create effect view when leaving Effects tab
-    if (_selectedTabIndex == 2 && index != 2) {
+    final oldTab = _tabs[_selectedTabIndex];
+    final newTab = _tabs[index];
+
+    if (oldTab == _TabDefinition.effects && newTab != _TabDefinition.effects) {
       _showCreateEffect = false;
     }
     
-    // If Music tab (index 3) is tapped, play animation from start
-    if (index == 3) {
+    // If Music tab is tapped, play animation from start
+    if (newTab == _TabDefinition.music) {
       _musicTabAnimationController?.reset();
       _musicTabAnimationController?.forward();
     }
     
-    // If Effects tab (index 2) is tapped, play animation from start
-    if (index == 2) {
+    // If Effects tab is tapped, play animation from start
+    if (newTab == _TabDefinition.effects) {
       _effectsTabAnimationController?.reset();
       _effectsTabAnimationController?.forward();
       setState(() {
@@ -228,7 +281,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         actions: [
-          if (_selectedTabIndex == 2 && _effectsSelectedFolder == 'My Effects' && !_showCreateEffect)
+          if (_tabs[_selectedTabIndex] == _TabDefinition.effects && _effectsSelectedFolder == 'My Effects' && !_showCreateEffect)
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: TweenAnimationBuilder<double>(
@@ -265,7 +318,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
                 onEnd: () {
                   // Restart animation by rebuilding
                   if (mounted &&
-                      _selectedTabIndex == 2 &&
+                      _tabs[_selectedTabIndex] == _TabDefinition.effects &&
                       _effectsSelectedFolder == 'My Effects') {
                     setState(() {});
                   }
@@ -380,8 +433,9 @@ class _LightControlWrapperState extends State<LightControlWrapper>
   }
 
   Widget _buildTabContent() {
-    switch (_selectedTabIndex) {
-      case 0:
+    final currentTab = _tabs[_selectedTabIndex];
+    switch (currentTab) {
+      case _TabDefinition.colors:
         return ColorsTabContent(
           key: const ValueKey('colors'),
           selectedColor: _selectedColor,
@@ -390,8 +444,9 @@ class _LightControlWrapperState extends State<LightControlWrapper>
           onIsOnChanged: _onIsOnChanged,
           onBrightnessChanged: _onBrightnessChanged,
           isEffectPlaying: _playingEffectConfig != null,
+          colorCapability: widget.colorCapability,
         );
-      case 1:
+      case _TabDefinition.whites:
         return WhitesTabContent(
           key: const ValueKey('whites'),
           selectedColor: _selectedColor,
@@ -400,8 +455,9 @@ class _LightControlWrapperState extends State<LightControlWrapper>
           onIsOnChanged: _onIsOnChanged,
           onBrightnessChanged: _onBrightnessChanged,
           isEffectPlaying: _playingEffectConfig != null,
+          colorCapability: widget.colorCapability,
         );
-      case 2:
+      case _TabDefinition.effects:
         return EffectsTabContent(
           key: const ValueKey('effects'),
           selectedColor: _selectedColor,
@@ -433,27 +489,25 @@ class _LightControlWrapperState extends State<LightControlWrapper>
             });
           },
         );
-      case 3:
+      case _TabDefinition.music:
         return MusicTabContent(
           key: const ValueKey('music'),
           selectedColor: _selectedColor,
           onColorChanged: _onColorChanged,
         );
-      default:
-        return const SizedBox.shrink();
     }
   }
 
-  // White temperature color values to detect
+  // White temperature color values to detect (must match ColorCapability whites)
   static const Set<int> _whiteTemperatureValues = {
-    0xFFF8E96C,
-    0xFFF6F08E,
-    0xFFF4F4AC,
-    0xFFF2F4C2,
-    0xFFECF5DA,
-    0xFFE3F3E9,
-    0xFFDDF1F2,
-    0xFFD6EFF6,
+    0xFFF8E96C, // 2700K
+    0xFFF6F08E, // 3000K
+    0xFFF4F4AC, // 3500K
+    0xFFF2F4C2, // 3700K
+    0xFFECF5DA, // 4000K
+    0xFFE3F3E9, // 4100K
+    0xFFDDF1F2, // 4700K
+    0xFFD6EFF6, // 5000K
   };
 
   bool _isWhiteTemperature(Color color) {
@@ -907,15 +961,10 @@ class _LightControlWrapperState extends State<LightControlWrapper>
   }
 
   Widget _buildTabSelector() {
-    const List<Map<String, String>> tabs = [
-      {'label': 'Colors', 'icon': 'assets/images/colorsicon.png'},
-      {'label': 'Whites', 'icon': 'assets/images/whitesicon.png'},
-      {'label': 'Effects', 'icon': ''},
-      {'label': 'Music', 'icon': 'assets/images/music.png'},
-    ];
+    final tabCount = _tabs.length;
 
     return Container(
-      width: 310,
+      width: tabCount == 2 ? 180.0 : 310.0,
       height: 77,
       decoration: BoxDecoration(
         color: const Color(0xFF2A2A2A).withOpacity(0.6),
@@ -932,7 +981,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
       padding: const EdgeInsets.all(4),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final tabWidth = constraints.maxWidth / 4;
+          final tabWidth = constraints.maxWidth / tabCount;
 
           return Stack(
             children: [
@@ -977,10 +1026,11 @@ class _LightControlWrapperState extends State<LightControlWrapper>
               ),
               // Tab buttons
               Row(
-                children: List.generate(tabs.length, (index) {
+                children: List.generate(tabCount, (index) {
+                  final tab = _tabs[index];
                   final isSelected = _selectedTabIndex == index;
-                  final isMusic = tabs[index]['label'] == 'Music';
-                  final isEffects = tabs[index]['label'] == 'Effects';
+                  final isMusic = tab == _TabDefinition.music;
+                  final isEffects = tab == _TabDefinition.effects;
                   return Expanded(
                     child: GestureDetector(
                       onTap: () => _onTabSelected(index),
@@ -1054,7 +1104,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
                                         ),
                                       )
                                     : Image.asset(
-                                        tabs[index]['icon']!,
+                                        tab.iconAsset,
                                         width: 30,
                                         height: 30,
                                         fit: BoxFit.contain,
@@ -1062,7 +1112,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
                           ),
                           const SizedBox(height: 7),
                           Text(
-                            tabs[index]['label']!,
+                            tab.label,
                             style: TextStyle(
                               fontFamily: 'SpaceMono',
                               fontSize: 12,
@@ -1096,6 +1146,7 @@ class ColorsTabContent extends StatelessWidget {
   final Function(bool) onIsOnChanged;
   final Function(double) onBrightnessChanged;
   final bool isEffectPlaying;
+  final String? colorCapability;
 
   const ColorsTabContent({
     super.key,
@@ -1105,45 +1156,13 @@ class ColorsTabContent extends StatelessWidget {
     required this.onIsOnChanged,
     required this.onBrightnessChanged,
     this.isEffectPlaying = false,
+    this.colorCapability,
   });
-
-  static const Map<String, Color> _colorMap = {
-    'Red': Color(0xFFEC202C),
-    'Pumpkin': Color(0xFFED2F24),
-    'Orange': Color(0xFFEF5023),
-    'Marigold': Color(0xFFF37A20),
-    'Sunset': Color(0xFFFAA819),
-    'Yellow': Color(0xFFFDD901),
-    'Lemon': Color(0xFFEFE814),
-    'Lime': Color(0xFFC7D92C),
-    'Pear': Color(0xFFA7CE38),
-    'Emerald': Color(0xFF88C440),
-    'Lt Green': Color(0xFF75BF43),
-    'Green': Color(0xFF6ABC45),
-    'Sea Foam': Color(0xFF6CBD45),
-    'Teal': Color(0xFF71BE48),
-    'Turquoise': Color(0xFF71C178),
-    'Arctic': Color(0xFF70C5A2),
-    'Ocean': Color(0xFF70C9CC),
-    'Sky': Color(0xFF61CAE5),
-    'Water': Color(0xFF43B4E7),
-    'Sapphire': Color(0xFF4782C3),
-    'Lt Blue': Color(0xFF4165AF),
-    'Deep Blue': Color(0xFF3E57A6),
-    'Indigo': Color(0xFF3C54A3),
-    'Orchid': Color(0xFF4B53A3),
-    'Purple': Color(0xFF6053A2),
-    'Lavender': Color(0xFF7952A0),
-    'Lilac': Color(0xFF94519F),
-    'Pink': Color(0xFFB2519E),
-    'Bubblegum': Color(0xFFC94D9B),
-    'Flamingo': Color(0xFFE63A94),
-    'Hot Pink': Color(0xFFEC2180),
-    'Deep Pink': Color(0xFFED1F52),
-  };
 
   @override
   Widget build(BuildContext context) {
+    final palette = ColorCapability.getColors(colorCapability);
+
     return Padding(
       padding: const EdgeInsets.only(left: 6, right: 6, bottom: 0),
       child: GridView.builder(
@@ -1155,10 +1174,11 @@ class ColorsTabContent extends StatelessWidget {
           mainAxisSpacing: 6,
           childAspectRatio: 0.9,
         ),
-        itemCount: _colorMap.length,
+        itemCount: palette.length,
         itemBuilder: (context, index) {
-          final colorName = _colorMap.keys.elementAt(index);
-          final color = _colorMap[colorName]!;
+          final entry = palette[index];
+          final colorName = entry['name'] as String;
+          final color = entry['color'] as Color;
           // No color is selected when an effect is playing
           final isSelected = !isEffectPlaying && color == selectedColor;
 
@@ -1227,6 +1247,7 @@ class WhitesTabContent extends StatelessWidget {
   final Function(bool) onIsOnChanged;
   final Function(double) onBrightnessChanged;
   final bool isEffectPlaying;
+  final String? colorCapability;
 
   const WhitesTabContent({
     super.key,
@@ -1236,21 +1257,13 @@ class WhitesTabContent extends StatelessWidget {
     required this.onIsOnChanged,
     required this.onBrightnessChanged,
     this.isEffectPlaying = false,
+    this.colorCapability,
   });
-
-  static const Map<String, Color> _whiteTemperatures = {
-    '2700K': Color(0xFFF8E96C),
-    '3000K': Color(0xFFF6F08E),
-    '3500K': Color(0xFFF4F4AC),
-    '3700K': Color(0xFFF2F4C2),
-    '4000K': Color(0xFFECF5DA),
-    '4100K': Color(0xFFE3F3E9),
-    '4700K': Color(0xFFDDF1F2),
-    '5000K': Color(0xFFD6EFF6),
-  };
 
   @override
   Widget build(BuildContext context) {
+    final palette = ColorCapability.getWhites(colorCapability);
+
     return Padding(
       padding: const EdgeInsets.only(left: 6, right: 6, bottom: 0),
       child: GridView.builder(
@@ -1262,10 +1275,11 @@ class WhitesTabContent extends StatelessWidget {
           mainAxisSpacing: 6,
           childAspectRatio: 0.9,
         ),
-        itemCount: _whiteTemperatures.length,
+        itemCount: palette.length,
         itemBuilder: (context, index) {
-          final tempName = _whiteTemperatures.keys.elementAt(index);
-          final color = _whiteTemperatures[tempName]!;
+          final entry = palette[index];
+          final tempName = entry['name'] as String;
+          final color = entry['color'] as Color;
           // No color is selected when an effect is playing
           final isSelected = !isEffectPlaying && color == selectedColor;
 

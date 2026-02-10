@@ -7,26 +7,29 @@ import 'package:haven/widgets/device_control_card.dart';
 import 'package:haven/widgets/light_zone_card.dart';
 import 'package:haven/widgets/image_view_content.dart';
 import 'package:haven/core/services/bluetooth_scan_service.dart';
+import 'package:haven/core/services/location_data_service.dart';
 import 'package:haven/screens/holiday_presets_screen.dart';
 import 'package:lottie/lottie.dart';
 
 // Import threshold constant
 const int kNearbyRssiThreshold = -50;
 
-class WelcomeScreen extends StatefulWidget {
-  const WelcomeScreen({super.key});
+class LightsScreen extends StatefulWidget {
+  const LightsScreen({super.key});
 
   @override
-  State<WelcomeScreen> createState() => _WelcomeScreenState();
+  State<LightsScreen> createState() => _LightsScreenState();
 }
 
-class _WelcomeScreenState extends State<WelcomeScreen>
+class _LightsScreenState extends State<LightsScreen>
     with TickerProviderStateMixin {
-  AnimationController? _lottieController;
   AnimationController? _pullController;
   AnimationController? _fadeController;
+  final ScrollController _scrollController = ScrollController();
   double _pullDistance = 0;
+  double _refreshPullDistance = 0; // captured at fade-out start
   bool _isRefreshing = false;
+  bool _isDragging = false; // true while the user's finger is on the list
   double _opacity = 0;
   static const double _maxPullDistance = 100;
   static const double _triggerDistance = 70;
@@ -47,6 +50,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   bool _showNearbyDevicePopup = false;
   NearbyHavenDevice? _nearbyDevice;
 
+  // Location data service
+  final LocationDataService _locationDataService = LocationDataService();
+
   // Devices list parsed from API response
   List<DeviceController> _devices = [];
 
@@ -66,7 +72,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   @override
   void initState() {
     super.initState();
-    _lottieController = AnimationController(vsync: this);
     _pullController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -91,8 +96,101 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       }
     });
 
+    // Listen for location data changes and rebuild device list
+    _locationDataService.addListener(_onLocationDataChanged);
+
+    // Populate devices from location data service (already loaded at login)
+    _populateDevicesFromLocationData();
+
     // Start Bluetooth scanning and listen for nearby devices
     _startBluetoothScanning();
+  }
+
+  /// Called whenever LocationDataService notifies listeners (new data loaded).
+  void _onLocationDataChanged() {
+    if (mounted) {
+      _populateDevicesFromLocationData();
+    }
+  }
+
+  /// Build the [_devices] list from the data in [LocationDataService].
+  /// Each controller becomes a [DeviceController] and we attach the
+  /// matching light names (from zonesAndLights) as a comma-separated string.
+  void _populateDevicesFromLocationData() {
+    final service = _locationDataService;
+    if (!service.hasData) return;
+
+    final List<DeviceController> devices = [];
+
+    for (final controller in service.controllers) {
+      // Collect the visible light names that belong to this controller.
+      // The API response ties lights to controllers by matching the
+      // controller MAC's last 4 characters in the light name prefix.
+      // We do a simple prefix check: "XXXX CHANNEL-N" where XXXX is the
+      // last 4 chars of the MAC address.
+      final last4 = controller.macAddress.length >= 4
+          ? controller.macAddress.substring(controller.macAddress.length - 4).toUpperCase()
+          : controller.macAddress.toUpperCase();
+
+      final matchingLights = service.allLights.where((light) {
+        return light.name.toUpperCase().startsWith(last4);
+      }).toList();
+
+      // If no lights matched by prefix, include ALL visible lights for this controller
+      // (fallback for controller types like K SERIES / Stratus where naming differs)
+      final lightsForController = matchingLights.isNotEmpty
+          ? matchingLights
+          : <LightZoneItem>[];
+
+      final lightNames = lightsForController
+          .where((l) => !l.isHidden)
+          .map((l) => l.name)
+          .join(',');
+
+      devices.add(DeviceController(
+        controllerId: controller.controllerId,
+        name: controller.name,
+        deviceId: controller.macAddress,
+        controllerTypeName: controller.typeName,
+        firmwareVersion: '',
+        isConnected: true, // assume connected from API
+        lightNames: lightNames,
+      ));
+    }
+
+    // If there are lights that didn't match any controller (e.g. K SERIES, Stratus),
+    // group them into virtual DeviceController entries by their light type.
+    final assignedLightNames = devices.expand((d) => d.lightNames.split(',')).toSet();
+    final unassignedLights = service.visibleLights.where(
+      (l) => !assignedLightNames.contains(l.name),
+    ).toList();
+
+    if (unassignedLights.isNotEmpty) {
+      // Group by type
+      final Map<String, List<LightZoneItem>> grouped = {};
+      for (final light in unassignedLights) {
+        grouped.putIfAbsent(light.type, () => []).add(light);
+      }
+
+      for (final entry in grouped.entries) {
+        devices.add(DeviceController(
+          controllerId: 0,
+          name: entry.key,
+          deviceId: '',
+          controllerTypeName: entry.key,
+          firmwareVersion: '',
+          isConnected: true,
+          lightNames: entry.value.map((l) => l.name).join(','),
+        ));
+      }
+    }
+
+    setState(() {
+      _devices = devices;
+      _hasLoadedDevices = true;
+    });
+
+    debugPrint('LightsScreen: Populated ${devices.length} device controllers from LocationDataService');
   }
 
   Future<void> _startBluetoothScanning() async {
@@ -138,7 +236,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
   @override
   void dispose() {
-    _lottieController?.dispose();
+    _locationDataService.removeListener(_onLocationDataChanged);
+    _scrollController.dispose();
     _pullController?.dispose();
     _fadeController?.dispose();
     _lightsTabAnimController?.dispose();
@@ -152,37 +251,33 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     super.dispose();
   }
 
-  void _onVerticalDragUpdate(DragUpdateDetails details) {
+  /// Called on each overscroll pixel when the user pulls down at the top of the list.
+  void _onOverscrollUpdate(double overscrollAmount) {
     if (_isRefreshing || !mounted) return;
 
     setState(() {
-      _pullDistance += details.delta.dy;
-      _pullDistance = _pullDistance.clamp(0, _maxPullDistance);
-      // Update opacity based on pull distance (animation stays at frame 0)
+      _pullDistance = (_pullDistance + overscrollAmount).clamp(0.0, _maxPullDistance);
       _opacity = (_pullDistance / _triggerDistance).clamp(0.0, 1.0);
     });
   }
 
-  Future<void> _onVerticalDragEnd(DragEndDetails details) async {
+  /// Called when the scroll gesture ends while we have accumulated pull distance.
+  void _onPullEnd() {
     if (_isRefreshing || !mounted) return;
 
     if (_pullDistance >= _triggerDistance) {
       // Trigger refresh
-      if (!mounted) return;
       setState(() {
         _isRefreshing = true;
         _opacity = 1.0;
       });
 
-      // Play the animation and fetch data in parallel (not waiting for animation). 
-      _lottieController?.reset();
-      _lottieController?.forward();
-
-      // TODO: Fetch devices when device service is re-implemented
-      Future.delayed(const Duration(milliseconds: 500)).then((_) {
+      // Re-fetch light states from the API
+      _locationDataService.refreshCurrentLocation().then((_) {
         debugPrint('Refreshed!');
         if (mounted) {
-          // Fade out the animation after data is loaded
+          // Capture the current pull distance for the slide-back animation
+          _refreshPullDistance = _pullDistance;
           _fadeController?.reset();
           _fadeController?.forward();
           _fadeController?.addListener(_fadeOutListener);
@@ -202,7 +297,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
     setState(() {
       _opacity = 1.0 - _fadeController!.value;
-      _pullDistance = _maxPullDistance * (1.0 - _fadeController!.value);
+      _pullDistance = _refreshPullDistance * (1.0 - _fadeController!.value);
     });
 
     if (_fadeController!.isCompleted) {
@@ -211,7 +306,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         _isRefreshing = false;
         _pullDistance = 0;
         _opacity = 0;
-        _lottieController?.reset();
       });
     }
   }
@@ -269,15 +363,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                 ),
               ),
             ),
-          // Gesture detector for custom pull-to-refresh (behind main content)
-          Positioned.fill(
-            child: GestureDetector(
-              onVerticalDragUpdate: _onVerticalDragUpdate,
-              onVerticalDragEnd: _onVerticalDragEnd,
-              behavior: HitTestBehavior.translucent,
-              child: Container(color: Colors.transparent),
-            ),
-          ),
           // Main content - on top so button is clickable
           Column(
             children: [
@@ -302,82 +387,49 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                           _selectedLocation = location;
                         });
                         debugPrint('Location selected: $location');
+                        // TODO: Map location name to locationId and call
+                        // _locationDataService.switchLocation(newLocationId);
                       },
                     ),
                   ),
                 ),
               ),
               Expanded(
-                child: GestureDetector(
-                  onVerticalDragUpdate: _onVerticalDragUpdate,
-                  onVerticalDragEnd: _onVerticalDragEnd,
-                  behavior: HitTestBehavior.translucent,
-                  child: _devices.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 26.0),
-                          child: const Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  "It's a little empty here..",
-                                  style: TextStyle(
-                                    fontFamily: 'SpaceMono',
-                                    fontSize: 23,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFFFFFFFF),
-                                  ),
-                                  textAlign: TextAlign.center,
+                child: _devices.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 26.0),
+                        child: const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                "It's a little empty here..",
+                                style: TextStyle(
+                                  fontFamily: 'SpaceMono',
+                                  fontSize: 23,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFFFFFFF),
                                 ),
-                                SizedBox(height: 8),
-                                Text(
-                                  "Add your first controller to get started",
-                                  style: TextStyle(
-                                    fontFamily: 'SpaceMono',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF828282),
-                                  ),
-                                  textAlign: TextAlign.center,
+                                textAlign: TextAlign.center,
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                "Add your first controller to get started",
+                                style: TextStyle(
+                                  fontFamily: 'SpaceMono',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF828282),
                                 ),
-                              ],
-                            ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ),
-                        )
-                      : _buildTabContent(),
-                ),
+                        ),
+                      )
+                    : _buildTabContent(),
               ),
             ],
-          ),
-
-          // Shooting star animation that pulls down - on top of content
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 70,
-            left: 0,
-            right: 0,
-            child: IgnorePointer(
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: Transform.translate(
-                  offset: Offset(0, _pullDistance - 80),
-                  child: Opacity(
-                    opacity: _opacity,
-                    child: Transform.rotate(
-                      angle: 3.926991, // 225 degrees in radians (45 + 180)
-                      child: Lottie.asset(
-                        'assets/animations/shootingstar.json',
-                        controller: _lottieController,
-                        width: 80,
-                        height: 80,
-                        onLoaded: (composition) {
-                          _lottieController?.duration = composition.duration;
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
           ),
 
           // Nearby device popup overlay
@@ -576,11 +628,105 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                         });
                       },
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _buildLightZoneCards().length,
-                      itemBuilder: (context, index) {
-                        return _buildLightZoneCards()[index];
+                  : Builder(
+                      builder: (context) {
+                        final cards = _buildLightZoneCards();
+                        return Stack(
+                          children: [
+                            // Spinner in the gap above the list
+                            if (_pullDistance > 0 || _isRefreshing)
+                              Positioned(
+                                top: (_pullDistance / 2) - 14,
+                                left: 0,
+                                right: 0,
+                                child: Opacity(
+                                  opacity: _opacity,
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: 28,
+                                      height: 28,
+                                      child: _isRefreshing
+                                          ? const CircularProgressIndicator(
+                                              strokeWidth: 2.5,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                Colors.white70,
+                                              ),
+                                            )
+                                          : CircularProgressIndicator(
+                                              strokeWidth: 2.5,
+                                              value: (_pullDistance /
+                                                      _triggerDistance)
+                                                  .clamp(0.0, 1.0),
+                                              valueColor:
+                                                  const AlwaysStoppedAnimation<
+                                                    Color
+                                                  >(Colors.white70),
+                                              backgroundColor: Colors.white12,
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            // Detect finger down / up to know when dragging ends
+                            Listener(
+                              onPointerDown: (_) {
+                                _isDragging = true;
+                              },
+                              onPointerUp: (_) {
+                                _isDragging = false;
+                                if (_pullDistance > 0 && !_isRefreshing) {
+                                  _onPullEnd();
+                                }
+                              },
+                              onPointerCancel: (_) {
+                                _isDragging = false;
+                                if (_pullDistance > 0 && !_isRefreshing) {
+                                  _onPullEnd();
+                                }
+                              },
+                              child: NotificationListener<ScrollNotification>(
+                                onNotification: (notification) {
+                                  if (_isRefreshing) return false;
+                                  if (notification is ScrollUpdateNotification) {
+                                    // When at the top and pulling down, the scroll
+                                    // offset tries to go negative. On iOS with
+                                    // BouncingScrollPhysics the metrics report the
+                                    // overscroll via pixels (negative offset).
+                                    final metrics = notification.metrics;
+                                    if (metrics.pixels < 0 && _isDragging) {
+                                      final overscroll = metrics.pixels.abs();
+                                      if (overscroll > _pullDistance) {
+                                        _onOverscrollUpdate(overscroll - _pullDistance);
+                                      }
+                                    } else if (metrics.pixels >= 0 && _pullDistance > 0) {
+                                      // User scrolled back up past 0 — reset pull
+                                      setState(() {
+                                        _pullDistance = 0;
+                                        _opacity = 0;
+                                      });
+                                    }
+                                  }
+                                  return false;
+                                },
+                                child: Transform.translate(
+                                  offset: Offset(0, _pullDistance),
+                                  child: ListView.builder(
+                                    controller: _scrollController,
+                                    physics: const BouncingScrollPhysics(
+                                      parent: AlwaysScrollableScrollPhysics(),
+                                    ),
+                                    padding: const EdgeInsets.all(16),
+                                    itemCount: cards.length,
+                                    itemBuilder: (context, index) {
+                                      return cards[index];
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
                       },
                     ),
             ),
@@ -591,6 +737,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               DeviceControlCard(
               devices: _devices,
               isImageViewActive: _isImageViewActive,
+              lightColors: _getLightStateColors(),
               onImageViewTap: () {
                 setState(() {
                   _isImageViewActive = !_isImageViewActive;
@@ -733,45 +880,71 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     }
   }
 
-  /// Builds individual light/zone cards from all devices
+  /// Collects the color for every visible light and zone.
+  /// These are the same colors shown on each individual light/zone card.
+  /// Used as the gradient stroke on the ALL LIGHTS / ZONES container.
+  List<Color> _getLightStateColors() {
+    final service = _locationDataService;
+    final items = [...service.zones, ...service.visibleLights];
+    if (items.isEmpty) return [];
+    return items.map((item) => item.initialColor).toList();
+  }
+
+  /// Builds individual light/zone cards from LocationDataService data.
+  /// Zones first, then visible lights — all driven by the [LightZoneItem] model.
   List<Widget> _buildLightZoneCards() {
     final List<Widget> cards = [];
+    final service = _locationDataService;
+    final locationId = service.selectedLocationId;
 
     debugPrint('=== Building light zone cards ===');
-    debugPrint('Total devices: ${_devices.length}');
 
-    for (int deviceIndex = 0; deviceIndex < _devices.length; deviceIndex++) {
-      final device = _devices[deviceIndex];
-      debugPrint('Device $deviceIndex: ${device.controllerTypeName}');
-      debugPrint('Light names: "${device.lightNames}"');
+    // Build cards from all zones + visible lights (shared logic)
+    final items = [...service.zones, ...service.visibleLights];
+    for (final item in items) {
+      cards.add(
+        Padding(
+          key: ValueKey('${item.itemType}_${item.zoneNumber}_${item.name}'),
+          padding: const EdgeInsets.only(bottom: 8),
+          child: LightZoneCard(
+            item: item,
+            locationId: locationId,
+            forceIsOn: _forceAllLightsState,
+          ),
+        ),
+      );
+    }
 
-      if (device.lightNames.isNotEmpty) {
-        final lights = device.lightNames.split(',');
-        debugPrint('Split into ${lights.length} lights: $lights');
-
-        for (int i = 0; i < lights.length; i++) {
-          final lightName = lights[i].trim();
-          if (lightName.isNotEmpty) {
-            debugPrint('Creating card for light: "$lightName"');
-            cards.add(
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: LightZoneCard(
-                  channelName: 'Channel ${i + 1}',
-                  lightName: lightName,
-                  controllerTypeName: device.controllerTypeName,
-                  // TODO: Pass actual IDs from API response
-                  lightId: 100 + i, // Example light ID
-                  locationId: 27040, // Example location ID
-                  // zoneId: null, // Add zone ID if available
-                  forceIsOn: _forceAllLightsState,
+    // Fallback: if LocationDataService has no data, use the old _devices list
+    if (cards.isEmpty) {
+      for (int deviceIndex = 0; deviceIndex < _devices.length; deviceIndex++) {
+        final device = _devices[deviceIndex];
+        if (device.lightNames.isNotEmpty) {
+          final lights = device.lightNames.split(',');
+          for (int i = 0; i < lights.length; i++) {
+            final lightName = lights[i].trim();
+            if (lightName.isNotEmpty) {
+              // Wrap legacy device data in a LightZoneItem
+              final fallbackItem = LightZoneItem(
+                itemType: 'Light',
+                name: lightName,
+                isHidden: false,
+                zoneNumber: i + 1,
+                type: device.controllerTypeName,
+              );
+              cards.add(
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: LightZoneCard(
+                    item: fallbackItem,
+                    locationId: locationId,
+                    forceIsOn: _forceAllLightsState,
+                  ),
                 ),
-              ),
-            );
+              );
+            }
           }
         }
-      } else {
-        debugPrint('Device has no light names');
       }
     }
 
@@ -804,6 +977,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         setState(() {
           _selectedTabIndex = index;
         });
+        // Refresh light states when tapping the Lights tab
+        if (index == 0) {
+          _locationDataService.refreshCurrentLocation();
+        }
         debugPrint('Tab $index tapped: $label');
       },
       behavior: HitTestBehavior.opaque,

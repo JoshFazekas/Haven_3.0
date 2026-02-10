@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'gradient_border_painter.dart';
 
 /// Represents a device/controller returned from the API
 class DeviceController {
@@ -48,6 +49,10 @@ class DeviceControlCard extends StatefulWidget {
   final VoidCallback? onImageViewTap;
   final bool isImageViewActive;
 
+  /// Current state colors from each light/zone card.
+  /// Used to paint a gradient border that reflects each light's color.
+  final List<Color> lightColors;
+
   const DeviceControlCard({
     super.key,
     required this.devices,
@@ -55,103 +60,137 @@ class DeviceControlCard extends StatefulWidget {
     this.onAllLightsOff,
     this.onImageViewTap,
     this.isImageViewActive = false,
+    this.lightColors = const [],
   });
 
   @override
   State<DeviceControlCard> createState() => _DeviceControlCardState();
 }
 
-class _DeviceControlCardState extends State<DeviceControlCard> {
+class _DeviceControlCardState extends State<DeviceControlCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _borderAnimController;
+
+  @override
+  void initState() {
+    super.initState();
+    _borderAnimController = AnimationController(
+      vsync: this,
+      duration: AllLightsZonesStyle.gradientSpinDuration,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _borderAnimController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasColors = widget.lightColors.isNotEmpty;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Container(
-        width: double.infinity,
-        height: 101,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: const Color(0xFF1D1D1D),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Stack(
-          children: [
-            // Left side content - title and buttons
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'ALL LIGHTS / ZONES',
-                  style: TextStyle(
-                    fontFamily: 'SpaceMono',
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+      padding: AllLightsZonesStyle.cardMargin,
+      child: hasColors
+          ? AnimatedBuilder(
+              animation: _borderAnimController,
+              builder: (context, child) {
+                return CustomPaint(
+                  foregroundPainter: GradientBorderPainter(
+                    colors: widget.lightColors,
+                    animationValue: _borderAnimController.value,
                   ),
+                  child: child,
+                );
+              },
+              child: _buildCardContent(),
+            )
+          : _buildCardContent(),
+    );
+  }
+
+  Widget _buildCardContent() {
+    return Container(
+      width: double.infinity,
+      height: AllLightsZonesStyle.cardHeight,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AllLightsZonesStyle.cardBorderRadius),
+        color: AllLightsZonesStyle.cardBackgroundColor,
+      ),
+      padding: AllLightsZonesStyle.cardPadding,
+      child: Stack(
+        children: [
+          // Left side content - title and buttons
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'ALL LIGHTS / ZONES',
+                style: AllLightsZonesStyle.titleStyle,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: _buildButton('OFF', isOn: false),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 1,
+                    child: _buildButton('ON', isOn: true),
+                  ),
+                  const Spacer(flex: 2),
+                ],
+              ),
+            ],
+          ),
+          // Right side - icon buttons centered vertically
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildImageIconButton(
+                  imagePath: 'assets/images/colors.png',
+                  backgroundColor: AllLightsZonesStyle.colorPaletteBackground,
+                  borderColor: AllLightsZonesStyle.colorPaletteBorder,
+                  onTap: () {
+                    HapticFeedback.mediumImpact();
+                    debugPrint('Color palette tapped');
+                  },
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 1,
-                      child: _buildButton('OFF', isOn: false),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 1,
-                      child: _buildButton('ON', isOn: true),
-                    ),
-                    const Spacer(flex: 2),
-                  ],
+                const SizedBox(width: 8),
+                _buildIconButton(
+                  icon: Icons.wb_sunny_outlined,
+                  backgroundColor: AllLightsZonesStyle.brightnessBackground,
+                  borderColor: AllLightsZonesStyle.brightnessBorder,
+                  onTap: () {
+                    HapticFeedback.mediumImpact();
+                    debugPrint('Brightness tapped');
+                  },
+                ),
+                const SizedBox(width: 8),
+                _buildImageIconButton(
+                  imagePath: 'assets/images/imageview.png',
+                  backgroundColor: widget.isImageViewActive
+                      ? AllLightsZonesStyle.imageViewActiveBackground
+                      : AllLightsZonesStyle.imageViewInactiveBackground,
+                  borderColor: AllLightsZonesStyle.imageViewBorder,
+                  onTap: () {
+                    HapticFeedback.mediumImpact();
+                    widget.onImageViewTap?.call();
+                    debugPrint('Image view tapped');
+                  },
                 ),
               ],
             ),
-            // Right side - icon buttons centered vertically
-            Positioned(
-              right: 0,
-              top: 0,
-              bottom: 0,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildImageIconButton(
-                    imagePath: 'assets/images/colors.png',
-                    backgroundColor: const Color(0xFF2A2A2A),
-                    borderColor: const Color(0xFF9E9E9E),
-                    onTap: () {
-                      HapticFeedback.mediumImpact();
-                      debugPrint('Color palette tapped');
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _buildIconButton(
-                    icon: Icons.wb_sunny_outlined,
-                    backgroundColor: const Color(0xFF3D2508),
-                    borderColor: const Color(0xFFD4842A),
-                    onTap: () {
-                      HapticFeedback.mediumImpact();
-                      debugPrint('Brightness tapped');
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _buildImageIconButton(
-                    imagePath: 'assets/images/imageview.png',
-                    backgroundColor: widget.isImageViewActive 
-                        ? const Color(0xFF3A7BD5) 
-                        : const Color(0xFF0D1F33),
-                    borderColor: const Color(0xFF3A7BD5),
-                    onTap: () {
-                      HapticFeedback.mediumImpact();
-                      widget.onImageViewTap?.call();
-                      debugPrint('Image view tapped');
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -168,21 +207,16 @@ class _DeviceControlCardState extends State<DeviceControlCard> {
         debugPrint('$label tapped - turning all lights ${isOn ? "ON" : "OFF"}');
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 9),
+        padding: AllLightsZonesStyle.buttonPadding,
         decoration: BoxDecoration(
-          color: const Color(0xFF484848),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF3D3D3D), width: 1),
+          color: AllLightsZonesStyle.buttonBackgroundColor,
+          borderRadius: BorderRadius.circular(AllLightsZonesStyle.buttonBorderRadius),
+          border: Border.all(color: AllLightsZonesStyle.buttonBorderColor, width: 1),
         ),
         child: Text(
           label,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontFamily: 'SpaceMono',
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-          ),
+          style: AllLightsZonesStyle.buttonTextStyle,
         ),
       ),
     );
@@ -191,18 +225,18 @@ class _DeviceControlCardState extends State<DeviceControlCard> {
   Widget _buildIconButton({
     required IconData icon,
     required VoidCallback onTap,
-    Color backgroundColor = const Color(0xFF484848),
-    Color borderColor = const Color(0xFF3D3D3D),
+    Color backgroundColor = AllLightsZonesStyle.buttonBackgroundColor,
+    Color borderColor = AllLightsZonesStyle.buttonBorderColor,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(AllLightsZonesStyle.iconButtonPadding),
         decoration: BoxDecoration(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AllLightsZonesStyle.iconButtonRadius),
         ),
-        child: Icon(icon, color: Colors.white, size: 24),
+        child: Icon(icon, color: Colors.white, size: AllLightsZonesStyle.iconSize),
       ),
     );
   }
@@ -210,18 +244,18 @@ class _DeviceControlCardState extends State<DeviceControlCard> {
   Widget _buildImageIconButton({
     required String imagePath,
     required VoidCallback onTap,
-    Color backgroundColor = const Color(0xFF484848),
-    Color borderColor = const Color(0xFF3D3D3D),
+    Color backgroundColor = AllLightsZonesStyle.buttonBackgroundColor,
+    Color borderColor = AllLightsZonesStyle.buttonBorderColor,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(AllLightsZonesStyle.iconButtonPadding),
         decoration: BoxDecoration(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AllLightsZonesStyle.iconButtonRadius),
         ),
-        child: Image.asset(imagePath, width: 24, height: 24),
+        child: Image.asset(imagePath, width: AllLightsZonesStyle.iconSize, height: AllLightsZonesStyle.iconSize),
       ),
     );
   }
