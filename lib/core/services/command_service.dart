@@ -55,25 +55,15 @@ class CommandService {
     // ── 1. Optimistic update ──
     // Update local state immediately so the UI reflects the change.
     if (type == 'Light') {
-      LocationDataService().optimisticSetColor(
-        lightId: id,
-        colorId: colorId,
-      );
+      LocationDataService().optimisticSetColor(lightId: id, colorId: colorId);
     }
 
     // ── 2. Fire the API call ──
     final endpoint = '$_baseUrl/SetColor';
 
-    final headers = {
-      ..._defaultHeaders,
-      'Authorization': 'Bearer $token',
-    };
+    final headers = {..._defaultHeaders, 'Authorization': 'Bearer $token'};
 
-    final body = {
-      'id': id,
-      'type': type,
-      'colorId': colorId,
-    };
+    final body = {'id': id, 'type': type, 'colorId': colorId};
 
     // Log the request
     _logger.logRequest(
@@ -120,7 +110,53 @@ class CommandService {
     }
   }
 
-  // ─────────────────────── Turn Off ───────────────────────
+  // ────────────────── Set Color All (Location) ──────────────────
+
+  /// Sends the **SetColor** command for the **entire location**.
+  ///
+  /// Uses `type: "Location"` with the currently selected location ID.
+  /// Optimistically updates all local items' color.
+  ///
+  /// ```dart
+  /// await CommandService().setAllColor(colorId: 21);
+  /// ```
+  Future<void> setAllColor({required int colorId}) async {
+    final locationId = LocationDataService().selectedLocationId;
+    if (locationId == null) {
+      throw CommandException('No location selected.');
+    }
+
+    // ── 1. Optimistic update ──
+    LocationDataService().optimisticSetColorAll(colorId: colorId);
+
+    // ── 2. Fire the API call ──
+    try {
+      final response = await HavenApi().setColor(
+        id: locationId,
+        type: 'Location',
+        colorId: colorId,
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint(
+          'CommandService: SetAllColor succeeded — locationId=$locationId, colorId=$colorId',
+        );
+      } else if (response.statusCode == 401) {
+        throw CommandException('Authentication failed. Please sign in again.');
+      } else {
+        throw CommandException(
+          'SetAllColor failed (${response.statusCode}): ${response.body}',
+        );
+      }
+    } catch (e) {
+      if (e is CommandException) rethrow;
+      throw CommandException(
+        'Failed to set color for all lights. Please check your connection and try again.',
+      );
+    }
+  }
+
+  // ─────────────────────── Turn Off (single) ───────────────────────
 
   /// Sends the **Off** command for a single light or zone.
   ///
@@ -129,10 +165,7 @@ class CommandService {
   /// ```dart
   /// await CommandService().turnOff(id: 1022, type: 'Light');
   /// ```
-  Future<void> turnOff({
-    required int id,
-    required String type,
-  }) async {
+  Future<void> turnOff({required int id, required String type}) async {
     // ── 1. Optimistic update ──
     if (type == 'Light') {
       LocationDataService().optimisticToggle(lightId: id, isOn: false);
@@ -168,10 +201,7 @@ class CommandService {
   /// ```dart
   /// await CommandService().turnOn(id: 1022, type: 'Light');
   /// ```
-  Future<void> turnOn({
-    required int id,
-    required String type,
-  }) async {
+  Future<void> turnOn({required int id, required String type}) async {
     // ── 1. Optimistic update ──
     if (type == 'Light') {
       LocationDataService().optimisticToggle(lightId: id, isOn: true);
@@ -219,10 +249,15 @@ class CommandService {
 
     // ── 2. Fire the API call ──
     try {
-      final response = await HavenApi().turnOff(id: locationId, type: 'Location');
+      final response = await HavenApi().turnOff(
+        id: locationId,
+        type: 'Location',
+      );
 
       if (response.statusCode == 200 || response.statusCode == 204) {
-        debugPrint('CommandService: All Off succeeded — locationId=$locationId');
+        debugPrint(
+          'CommandService: All Off succeeded — locationId=$locationId',
+        );
       } else if (response.statusCode == 401) {
         throw CommandException('Authentication failed. Please sign in again.');
       } else {
@@ -259,7 +294,10 @@ class CommandService {
 
     // ── 2. Fire the API call ──
     try {
-      final response = await HavenApi().turnOn(id: locationId, type: 'Location');
+      final response = await HavenApi().turnOn(
+        id: locationId,
+        type: 'Location',
+      );
 
       if (response.statusCode == 200 || response.statusCode == 204) {
         debugPrint('CommandService: All On succeeded — locationId=$locationId');

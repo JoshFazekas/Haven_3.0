@@ -46,13 +46,14 @@ class LightZoneItem {
   bool get isLight => itemType == 'Light';
 
   /// Display label for the channel/zone number, e.g. "Zone 1" or "Channel 2".
-  String get channelLabel => isZone ? 'Zone $zoneNumber' : 'Channel $zoneNumber';
+  String get channelLabel =>
+      isZone ? 'Zone $zoneNumber' : 'Channel $zoneNumber';
 
   /// Whether this light/zone is currently on, derived from API data.
   bool get isCurrentlyOn => LightingStatus.isOn(
-        lightingStatus: lightingStatus,
-        brightnessId: lightBrightnessId,
-      );
+    lightingStatus: lightingStatus,
+    brightnessId: lightBrightnessId,
+  );
 
   /// Brightness as a display percentage (0–100), e.g. 80.
   int get brightnessPercent =>
@@ -134,20 +135,20 @@ class LightZoneItem {
   }
 
   Map<String, dynamic> toJson() => {
-        't': itemType,
-        'lightId': lightId,
-        'name': name,
-        'lightColor': lightColor,
-        'colorId': colorId,
-        'colorName': colorName,
-        'lightBrightnessId': lightBrightnessId,
-        'isHidden': isHidden,
-        'zoneNumber': zoneNumber,
-        'type': type,
-        'lightingStatusId': lightingStatusId,
-        'lightingStatus': lightingStatus,
-        'colorCapability': colorCapability,
-      };
+    't': itemType,
+    'lightId': lightId,
+    'name': name,
+    'lightColor': lightColor,
+    'colorId': colorId,
+    'colorName': colorName,
+    'lightBrightnessId': lightBrightnessId,
+    'isHidden': isHidden,
+    'zoneNumber': zoneNumber,
+    'type': type,
+    'lightingStatusId': lightingStatusId,
+    'lightingStatus': lightingStatus,
+    'colorCapability': colorCapability,
+  };
 }
 
 /// Represents a controller from the API response
@@ -177,12 +178,12 @@ class ControllerItem {
   }
 
   Map<String, dynamic> toJson() => {
-        'controllerId': controllerId,
-        'name': name,
-        'macAddress': macAddress,
-        'typeName': typeName,
-        'proFlag': proFlag,
-      };
+    'controllerId': controllerId,
+    'name': name,
+    'macAddress': macAddress,
+    'typeName': typeName,
+    'proFlag': proFlag,
+  };
 }
 
 /// Represents a saved effect from the API response
@@ -209,11 +210,11 @@ class EffectItem {
   }
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'id': id,
-        'effectType': effectType,
-        'configuration': configuration,
-      };
+    'name': name,
+    'id': id,
+    'effectType': effectType,
+    'configuration': configuration,
+  };
 }
 
 // ─────────────────────────── Service ──────────────────────────
@@ -294,6 +295,30 @@ class LocationDataService extends ChangeNotifier {
   List<LightZoneItem> get allLights =>
       _zonesAndLights.where((item) => item.isLight).toList();
 
+  /// The "best" color capability across all lights and zones.
+  ///
+  /// If **any** item has `"Extended"` capability the whole location is
+  /// treated as Extended so the full palette is shown when controlling
+  /// all lights at once.  Falls back to `"Legacy"`.
+  String get bestColorCapability {
+    for (final item in _zonesAndLights) {
+      if (item.colorCapability?.toUpperCase() == 'EXTENDED') return 'Extended';
+    }
+    return 'Legacy';
+  }
+
+  /// The "best" light type across all lights and zones.
+  ///
+  /// If **any** item is an X Series (`"TRIM LIGHT"`) the location is
+  /// treated as X Series so Effects & Music tabs appear when controlling
+  /// all lights at once.  Returns `null` if the list is empty.
+  String? get bestLightType {
+    for (final item in _zonesAndLights) {
+      if (item.type.toUpperCase() == 'TRIM LIGHT') return 'TRIM LIGHT';
+    }
+    return _zonesAndLights.isNotEmpty ? _zonesAndLights.first.type : null;
+  }
+
   // ─────────────────────── Core Methods ───────────────────────
 
   /// Load the previously-selected location from secure storage.
@@ -357,7 +382,8 @@ class LocationDataService extends ChangeNotifier {
     final old = _zonesAndLights[idx];
 
     // Resolve the color name from the palette if not provided
-    final resolvedName = colorName ??
+    final resolvedName =
+        colorName ??
         ColorCapability.nameForId(colorId, capability: old.colorCapability) ??
         old.colorName;
 
@@ -382,10 +408,7 @@ class LocationDataService extends ChangeNotifier {
   ///
   /// After calling this, fire the real API command and then call
   /// [refreshCurrentLocation] to reconcile with the server.
-  void optimisticToggle({
-    required int lightId,
-    required bool isOn,
-  }) {
+  void optimisticToggle({required int lightId, required bool isOn}) {
     final idx = _zonesAndLights.indexWhere((item) => item.lightId == lightId);
     if (idx == -1) return;
 
@@ -405,6 +428,43 @@ class LocationDataService extends ChangeNotifier {
     debugPrint(
       'LocationDataService: Optimistic toggle — '
       'light $lightId → ${isOn ? 'ON' : 'OFF'}',
+    );
+    notifyListeners();
+  }
+
+  /// Optimistically update the color on **all** lights and zones.
+  ///
+  /// Sets every item's `colorId`, `colorName`, `lightingStatus`, and
+  /// `lightingStatusId` so the UI reflects the change immediately.
+  void optimisticSetColorAll({required int colorId, String? colorName}) {
+    final now = DateTime.now();
+    for (int i = 0; i < _zonesAndLights.length; i++) {
+      final item = _zonesAndLights[i];
+      if (item.lightId != null) {
+        _pendingExpectations[item.lightId!] = _OptimisticExpectation(
+          expectedStatusId: 3,
+          expectedColorId: colorId,
+          createdAt: now,
+        );
+      }
+      final resolvedName =
+          colorName ??
+          ColorCapability.nameForId(
+            colorId,
+            capability: item.colorCapability,
+          ) ??
+          item.colorName;
+      _zonesAndLights[i] = item.copyWith(
+        colorId: colorId,
+        colorName: resolvedName,
+        lightingStatus: 'SOLID_COLOR',
+        lightingStatusId: 3,
+      );
+    }
+
+    debugPrint(
+      'LocationDataService: Optimistic set color ALL — '
+      '${_zonesAndLights.length} items → colorId=$colorId',
     );
     notifyListeners();
   }
@@ -568,7 +628,10 @@ class LocationDataService extends ChangeNotifier {
   ///
   /// Guards against concurrent fetches — if a fetch is already in flight
   /// the call returns `false` immediately.
-  Future<bool> _fetchLocation(int locationId, {required bool preserveOldData}) async {
+  Future<bool> _fetchLocation(
+    int locationId, {
+    required bool preserveOldData,
+  }) async {
     // Prevent overlapping network calls
     if (_isLoading) return false;
 
@@ -615,7 +678,9 @@ class LocationDataService extends ChangeNotifier {
 
       return true;
     } catch (e) {
-      debugPrint('LocationDataService: Error fetching location $locationId: $e');
+      debugPrint(
+        'LocationDataService: Error fetching location $locationId: $e',
+      );
       return false;
     } finally {
       _isLoading = false;
@@ -648,18 +713,21 @@ class LocationDataService extends ChangeNotifier {
   void _parseApiResponse(Map<String, dynamic> data) {
     // Parse zones and lights
     final zonesAndLightsJson = data['zonesAndLights'] as List<dynamic>? ?? [];
-    _zonesAndLights =
-        zonesAndLightsJson.map((e) => LightZoneItem.fromJson(e as Map<String, dynamic>)).toList();
+    _zonesAndLights = zonesAndLightsJson
+        .map((e) => LightZoneItem.fromJson(e as Map<String, dynamic>))
+        .toList();
 
     // Parse controllers
     final controllersJson = data['controllers'] as List<dynamic>? ?? [];
-    _controllers =
-        controllersJson.map((e) => ControllerItem.fromJson(e as Map<String, dynamic>)).toList();
+    _controllers = controllersJson
+        .map((e) => ControllerItem.fromJson(e as Map<String, dynamic>))
+        .toList();
 
     // Parse effects
     final effectsJson = data['effects'] as List<dynamic>? ?? [];
-    _effects =
-        effectsJson.map((e) => EffectItem.fromJson(e as Map<String, dynamic>)).toList();
+    _effects = effectsJson
+        .map((e) => EffectItem.fromJson(e as Map<String, dynamic>))
+        .toList();
 
     debugPrint(
       'LocationDataService: Loaded ${_zonesAndLights.length} zones/lights, '

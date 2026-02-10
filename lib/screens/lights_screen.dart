@@ -10,6 +10,7 @@ import 'package:haven/core/services/bluetooth_scan_service.dart';
 import 'package:haven/core/services/command_service.dart';
 import 'package:haven/core/services/location_data_service.dart';
 import 'package:haven/screens/holiday_presets_screen.dart';
+import 'package:haven/screens/light_control_wrapper.dart';
 import 'package:lottie/lottie.dart';
 
 // Import threshold constant
@@ -131,7 +132,9 @@ class _LightsScreenState extends State<LightsScreen>
       // We do a simple prefix check: "XXXX CHANNEL-N" where XXXX is the
       // last 4 chars of the MAC address.
       final last4 = controller.macAddress.length >= 4
-          ? controller.macAddress.substring(controller.macAddress.length - 4).toUpperCase()
+          ? controller.macAddress
+                .substring(controller.macAddress.length - 4)
+                .toUpperCase()
           : controller.macAddress.toUpperCase();
 
       final matchingLights = service.allLights.where((light) {
@@ -149,23 +152,27 @@ class _LightsScreenState extends State<LightsScreen>
           .map((l) => l.name)
           .join(',');
 
-      devices.add(DeviceController(
-        controllerId: controller.controllerId,
-        name: controller.name,
-        deviceId: controller.macAddress,
-        controllerTypeName: controller.typeName,
-        firmwareVersion: '',
-        isConnected: true, // assume connected from API
-        lightNames: lightNames,
-      ));
+      devices.add(
+        DeviceController(
+          controllerId: controller.controllerId,
+          name: controller.name,
+          deviceId: controller.macAddress,
+          controllerTypeName: controller.typeName,
+          firmwareVersion: '',
+          isConnected: true, // assume connected from API
+          lightNames: lightNames,
+        ),
+      );
     }
 
     // If there are lights that didn't match any controller (e.g. K SERIES, Stratus),
     // group them into virtual DeviceController entries by their light type.
-    final assignedLightNames = devices.expand((d) => d.lightNames.split(',')).toSet();
-    final unassignedLights = service.visibleLights.where(
-      (l) => !assignedLightNames.contains(l.name),
-    ).toList();
+    final assignedLightNames = devices
+        .expand((d) => d.lightNames.split(','))
+        .toSet();
+    final unassignedLights = service.visibleLights
+        .where((l) => !assignedLightNames.contains(l.name))
+        .toList();
 
     if (unassignedLights.isNotEmpty) {
       // Group by type
@@ -175,15 +182,17 @@ class _LightsScreenState extends State<LightsScreen>
       }
 
       for (final entry in grouped.entries) {
-        devices.add(DeviceController(
-          controllerId: 0,
-          name: entry.key,
-          deviceId: '',
-          controllerTypeName: entry.key,
-          firmwareVersion: '',
-          isConnected: true,
-          lightNames: entry.value.map((l) => l.name).join(','),
-        ));
+        devices.add(
+          DeviceController(
+            controllerId: 0,
+            name: entry.key,
+            deviceId: '',
+            controllerTypeName: entry.key,
+            firmwareVersion: '',
+            isConnected: true,
+            lightNames: entry.value.map((l) => l.name).join(','),
+          ),
+        );
       }
     }
 
@@ -192,7 +201,9 @@ class _LightsScreenState extends State<LightsScreen>
       _hasLoadedDevices = true;
     });
 
-    debugPrint('LightsScreen: Populated ${devices.length} device controllers from LocationDataService');
+    debugPrint(
+      'LightsScreen: Populated ${devices.length} device controllers from LocationDataService',
+    );
   }
 
   Future<void> _startBluetoothScanning() async {
@@ -258,7 +269,10 @@ class _LightsScreenState extends State<LightsScreen>
     if (_isRefreshing || !mounted) return;
 
     setState(() {
-      _pullDistance = (_pullDistance + overscrollAmount).clamp(0.0, _maxPullDistance);
+      _pullDistance = (_pullDistance + overscrollAmount).clamp(
+        0.0,
+        _maxPullDistance,
+      );
       _opacity = (_pullDistance / _triggerDistance).clamp(0.0, 1.0);
     });
   }
@@ -441,7 +455,6 @@ class _LightsScreenState extends State<LightsScreen>
               onDismiss: _dismissNearbyDevicePopup,
               onConnect: _onConnectToDevice,
             ),
-
         ],
       ),
       bottomNavigationBar: _devices.isEmpty
@@ -652,14 +665,15 @@ class _LightsScreenState extends State<LightsScreen>
                                               strokeWidth: 2.5,
                                               valueColor:
                                                   AlwaysStoppedAnimation<Color>(
-                                                Colors.white70,
-                                              ),
+                                                    Colors.white70,
+                                                  ),
                                             )
                                           : CircularProgressIndicator(
                                               strokeWidth: 2.5,
-                                              value: (_pullDistance /
-                                                      _triggerDistance)
-                                                  .clamp(0.0, 1.0),
+                                              value:
+                                                  (_pullDistance /
+                                                          _triggerDistance)
+                                                      .clamp(0.0, 1.0),
                                               valueColor:
                                                   const AlwaysStoppedAnimation<
                                                     Color
@@ -690,7 +704,8 @@ class _LightsScreenState extends State<LightsScreen>
                               child: NotificationListener<ScrollNotification>(
                                 onNotification: (notification) {
                                   if (_isRefreshing) return false;
-                                  if (notification is ScrollUpdateNotification) {
+                                  if (notification
+                                      is ScrollUpdateNotification) {
                                     // When at the top and pulling down, the scroll
                                     // offset tries to go negative. On iOS with
                                     // BouncingScrollPhysics the metrics report the
@@ -699,9 +714,12 @@ class _LightsScreenState extends State<LightsScreen>
                                     if (metrics.pixels < 0 && _isDragging) {
                                       final overscroll = metrics.pixels.abs();
                                       if (overscroll > _pullDistance) {
-                                        _onOverscrollUpdate(overscroll - _pullDistance);
+                                        _onOverscrollUpdate(
+                                          overscroll - _pullDistance,
+                                        );
                                       }
-                                    } else if (metrics.pixels >= 0 && _pullDistance > 0) {
+                                    } else if (metrics.pixels >= 0 &&
+                                        _pullDistance > 0) {
                                       // User scrolled back up past 0 — reset pull
                                       setState(() {
                                         _pullDistance = 0;
@@ -737,45 +755,48 @@ class _LightsScreenState extends State<LightsScreen>
               _buildChannelCarousel(channelNames)
             else
               DeviceControlCard(
-              devices: _devices,
-              isImageViewActive: _isImageViewActive,
-              lightColors: _getLightStateColors(),
-              onImageViewTap: () {
-                setState(() {
-                  _isImageViewActive = !_isImageViewActive;
-                });
-              },
-              onAllLightsOn: () {
-                setState(() {
-                  _forceAllLightsState = true;
-                });
-                // Fire the API command
-                CommandService().turnAllOn();
-                // Reset after a short delay so future toggles work
-                Future.delayed(const Duration(milliseconds: 100), () {
-                  if (mounted) {
-                    setState(() {
-                      _forceAllLightsState = null;
-                    });
-                  }
-                });
-              },
-              onAllLightsOff: () {
-                setState(() {
-                  _forceAllLightsState = false;
-                });
-                // Fire the API command
-                CommandService().turnAllOff();
-                // Reset after a short delay so future toggles work
-                Future.delayed(const Duration(milliseconds: 100), () {
-                  if (mounted) {
-                    setState(() {
-                      _forceAllLightsState = null;
-                    });
-                  }
-                });
-              },
-            ),
+                devices: _devices,
+                isImageViewActive: _isImageViewActive,
+                lightColors: _getLightStateColors(),
+                onImageViewTap: () {
+                  setState(() {
+                    _isImageViewActive = !_isImageViewActive;
+                  });
+                },
+                onColorPaletteTap: () {
+                  _openAllLightsColorPalette();
+                },
+                onAllLightsOn: () {
+                  setState(() {
+                    _forceAllLightsState = true;
+                  });
+                  // Fire the API command
+                  CommandService().turnAllOn();
+                  // Reset after a short delay so future toggles work
+                  Future.delayed(const Duration(milliseconds: 100), () {
+                    if (mounted) {
+                      setState(() {
+                        _forceAllLightsState = null;
+                      });
+                    }
+                  });
+                },
+                onAllLightsOff: () {
+                  setState(() {
+                    _forceAllLightsState = false;
+                  });
+                  // Fire the API command
+                  CommandService().turnAllOff();
+                  // Reset after a short delay so future toggles work
+                  Future.delayed(const Duration(milliseconds: 100), () {
+                    if (mounted) {
+                      setState(() {
+                        _forceAllLightsState = null;
+                      });
+                    }
+                  });
+                },
+              ),
             const SizedBox(height: 12),
           ],
         );
@@ -894,6 +915,56 @@ class _LightsScreenState extends State<LightsScreen>
     final items = [...service.zones, ...service.visibleLights];
     if (items.isEmpty) return [];
     return items.map((item) => item.initialColor).toList();
+  }
+
+  /// Opens the [LightControlWrapper] in "All Lights / Zones" mode.
+  ///
+  /// The color palette shows the **best** capability across the entire
+  /// location (Extended if any light supports it, otherwise Legacy) and
+  /// all available tabs (including Effects & Music if any X Series light
+  /// is present).  Commands target the whole location.
+  void _openAllLightsColorPalette() {
+    final service = _locationDataService;
+    // Determine whether any light is currently on
+    final items = [...service.zones, ...service.visibleLights];
+    final anyOn = items.any((item) => item.isCurrentlyOn);
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LightControlWrapper(
+          lightName: 'ALL LIGHTS / ZONES',
+          controllerTypeName: '',
+          locationId: service.selectedLocationId,
+          colorCapability: service.bestColorCapability,
+          lightType: service.bestLightType,
+          isAllLightsMode: true,
+          initialTabIndex: 0,
+          initialColor: items.isNotEmpty ? items.first.initialColor : null,
+          initialIsOn: anyOn,
+          initialBrightness: 100.0,
+          onColorSelected:
+              (
+                Color color,
+                bool isOn,
+                double brightness,
+                Map<String, dynamic>? effectConfig,
+              ) {
+                // Force update all light cards
+                setState(() {
+                  _forceAllLightsState = isOn;
+                });
+                Future.delayed(const Duration(milliseconds: 100), () {
+                  if (mounted) {
+                    setState(() {
+                      _forceAllLightsState = null;
+                    });
+                  }
+                });
+              },
+        ),
+      ),
+    );
   }
 
   /// Builds individual light/zone cards from LocationDataService data.

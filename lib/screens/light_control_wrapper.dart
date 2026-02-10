@@ -30,10 +30,7 @@ List<_TabDefinition> _buildAvailableTabs({
   required String? colorCapability,
   required String? lightType,
 }) {
-  final tabs = <_TabDefinition>[
-    _TabDefinition.colors,
-    _TabDefinition.whites,
-  ];
+  final tabs = <_TabDefinition>[_TabDefinition.colors, _TabDefinition.whites];
 
   // X Series lights (TRIM LIGHT) get Effects + Music
   final isXSeries =
@@ -67,6 +64,10 @@ class LightControlWrapper extends StatefulWidget {
   final String? colorCapability; // "Legacy" or "Extended"
   final String? lightType; // e.g. "TRIM LIGHT", "K SERIES", etc.
 
+  /// When `true`, commands target the entire location rather than
+  /// a single light/zone.  The card displays "ALL LIGHTS / ZONES".
+  final bool isAllLightsMode;
+
   const LightControlWrapper({
     super.key,
     required this.lightName,
@@ -82,6 +83,7 @@ class LightControlWrapper extends StatefulWidget {
     this.initialEffectConfig,
     this.colorCapability,
     this.lightType,
+    this.isAllLightsMode = false,
   });
 
   @override
@@ -108,10 +110,11 @@ class _LightControlWrapperState extends State<LightControlWrapper>
 
   // Effects tab folder selection state
   String? _effectsSelectedFolder;
-  
+
   // Create effect view state
   bool _showCreateEffect = false;
-  bool _inEffectConfigScreen = false; // Track if user is in an effect type config screen
+  bool _inEffectConfigScreen =
+      false; // Track if user is in an effect type config screen
   VoidCallback? _effectSaveCallback; // Save callback from effect config screens
 
   // Music tab animation controller
@@ -161,7 +164,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     );
-    
+
     _musicTabAnimationController!.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         // Keep animation at the last frame instead of looping
@@ -174,7 +177,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     );
-    
+
     _effectsTabAnimationController!.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         // Keep animation at the last frame instead of looping
@@ -218,7 +221,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     if (index == _selectedTabIndex) return;
 
     HapticFeedback.mediumImpact();
-    
+
     // Reset create effect view when leaving Effects tab
     final oldTab = _tabs[_selectedTabIndex];
     final newTab = _tabs[index];
@@ -226,13 +229,13 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     if (oldTab == _TabDefinition.effects && newTab != _TabDefinition.effects) {
       _showCreateEffect = false;
     }
-    
+
     // If Music tab is tapped, play animation from start
     if (newTab == _TabDefinition.music) {
       _musicTabAnimationController?.reset();
       _musicTabAnimationController?.forward();
     }
-    
+
     // If Effects tab is tapped, play animation from start
     if (newTab == _TabDefinition.effects) {
       _effectsTabAnimationController?.reset();
@@ -241,7 +244,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
         _effectsTabAnimationPlaying = true;
       });
     }
-    
+
     setState(() {
       _selectedTabIndex = index;
     });
@@ -260,13 +263,22 @@ class _LightControlWrapperState extends State<LightControlWrapper>
 
     // Fire the SetColor API command if we have a light/zone ID and a color ID
     if (colorId != null) {
-      final id = widget.lightId ?? widget.zoneId;
-      final type = widget.lightId != null ? 'Light' : 'Zone';
-
-      if (id != null) {
-        CommandService().setColor(id: id, type: type, colorId: colorId).catchError((e) {
-          debugPrint('SetColor command failed: $e');
+      if (widget.isAllLightsMode) {
+        // All Lights / Zones mode → send to entire location
+        CommandService().setAllColor(colorId: colorId).catchError((e) {
+          debugPrint('SetAllColor command failed: $e');
         });
+      } else {
+        final id = widget.lightId ?? widget.zoneId;
+        final type = widget.lightId != null ? 'Light' : 'Zone';
+
+        if (id != null) {
+          CommandService()
+              .setColor(id: id, type: type, colorId: colorId)
+              .catchError((e) {
+                debugPrint('SetColor command failed: $e');
+              });
+        }
       }
     }
   }
@@ -281,6 +293,18 @@ class _LightControlWrapperState extends State<LightControlWrapper>
   /// toggle actions (the switch), NOT when turning on as a side-effect
   /// of selecting a color (SetColor already handles that).
   void _onToggleCommand(bool isOn) {
+    if (widget.isAllLightsMode) {
+      // All Lights / Zones mode → send to entire location
+      final command = isOn
+          ? CommandService().turnAllOn()
+          : CommandService().turnAllOff();
+
+      command.catchError((e) {
+        debugPrint('Toggle all command failed: $e');
+      });
+      return;
+    }
+
     final id = widget.lightId ?? widget.zoneId;
     final type = widget.lightId != null ? 'Light' : 'Zone';
 
@@ -313,7 +337,9 @@ class _LightControlWrapperState extends State<LightControlWrapper>
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         actions: [
-          if (_tabs[_selectedTabIndex] == _TabDefinition.effects && _effectsSelectedFolder == 'My Effects' && !_showCreateEffect)
+          if (_tabs[_selectedTabIndex] == _TabDefinition.effects &&
+              _effectsSelectedFolder == 'My Effects' &&
+              !_showCreateEffect)
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: TweenAnimationBuilder<double>(
@@ -387,49 +413,50 @@ class _LightControlWrapperState extends State<LightControlWrapper>
               ),
             ),
           if (!_inEffectConfigScreen)
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: GestureDetector(
-              onTap: () {
-                HapticFeedback.mediumImpact();
-                if (widget.onColorSelected != null) {
-                  widget.onColorSelected!(
-                    _selectedColor,
-                    _isOn,
-                    _brightness,
-                    _playingEffectConfig,
-                  );
-                }
-                Navigator.pop(context);
-                // Reconcile local state with the server now that the
-                // user is done picking colors.
-                LocationDataService().refreshCurrentLocation();
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2A2A2A),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'Done',
-                  style: TextStyle(
-                    fontFamily: 'SpaceMono',
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  if (widget.onColorSelected != null) {
+                    widget.onColorSelected!(
+                      _selectedColor,
+                      _isOn,
+                      _brightness,
+                      _playingEffectConfig,
+                    );
+                  }
+                  Navigator.pop(context);
+                  // Reconcile local state with the server now that the
+                  // user is done picking colors.
+                  LocationDataService().refreshCurrentLocation();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A2A2A),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Done',
+                    style: TextStyle(
+                      fontFamily: 'SpaceMono',
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
         ],
       ),
       body: SafeArea(
-        bottom: !_showCreateEffect, // Allow content to extend to bottom when in create effect mode
+        bottom:
+            !_showCreateEffect, // Allow content to extend to bottom when in create effect mode
         child: Column(
           children: [
             // Content area - switches between tab content
@@ -446,7 +473,11 @@ class _LightControlWrapperState extends State<LightControlWrapper>
               child: _showCreateEffect
                   ? const SizedBox.shrink()
                   : Padding(
-                      padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
+                      padding: const EdgeInsets.only(
+                        left: 12,
+                        right: 12,
+                        bottom: 8,
+                      ),
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: _buildTabSelector(),
@@ -1097,54 +1128,60 @@ class _LightControlWrapperState extends State<LightControlWrapper>
                                         width: 26,
                                         height: 26,
                                         fit: BoxFit.contain,
-                                        controller: _musicTabAnimationController,
+                                        controller:
+                                            _musicTabAnimationController,
                                         onLoaded: (composition) {
-                                          _musicTabAnimationController?.duration = composition.duration;
+                                          _musicTabAnimationController
+                                                  ?.duration =
+                                              composition.duration;
                                         },
                                       ),
                                     ),
                                   )
                                 : isEffects
-                                    ? Container(
-                                        width: 30,
-                                        height: 30,
-                                        decoration: const BoxDecoration(
-                                          gradient: RadialGradient(
-                                            center: Alignment.center,
-                                            radius: 0.8,
-                                            colors: [
-                                              Color(0xFF1A3A6E),
-                                              Color(0xFFEC202C),
-                                            ],
-                                          ),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Center(
-                                          child: _effectsTabAnimationPlaying
-                                              ? Lottie.asset(
-                                                  'assets/animations/effecttab.json',
-                                                  width: 22,
-                                                  height: 22,
-                                                  fit: BoxFit.contain,
-                                                  controller: _effectsTabAnimationController,
-                                                  onLoaded: (composition) {
-                                                    _effectsTabAnimationController?.duration = composition.duration;
-                                                  },
-                                                )
-                                              : Image.asset(
-                                                  'assets/images/effecttab.png',
-                                                  width: 22,
-                                                  height: 22,
-                                                  fit: BoxFit.contain,
-                                                ),
-                                        ),
-                                      )
-                                    : Image.asset(
-                                        tab.iconAsset,
-                                        width: 30,
-                                        height: 30,
-                                        fit: BoxFit.contain,
+                                ? Container(
+                                    width: 30,
+                                    height: 30,
+                                    decoration: const BoxDecoration(
+                                      gradient: RadialGradient(
+                                        center: Alignment.center,
+                                        radius: 0.8,
+                                        colors: [
+                                          Color(0xFF1A3A6E),
+                                          Color(0xFFEC202C),
+                                        ],
                                       ),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: _effectsTabAnimationPlaying
+                                          ? Lottie.asset(
+                                              'assets/animations/effecttab.json',
+                                              width: 22,
+                                              height: 22,
+                                              fit: BoxFit.contain,
+                                              controller:
+                                                  _effectsTabAnimationController,
+                                              onLoaded: (composition) {
+                                                _effectsTabAnimationController
+                                                        ?.duration =
+                                                    composition.duration;
+                                              },
+                                            )
+                                          : Image.asset(
+                                              'assets/images/effecttab.png',
+                                              width: 22,
+                                              height: 22,
+                                              fit: BoxFit.contain,
+                                            ),
+                                    ),
+                                  )
+                                : Image.asset(
+                                    tab.iconAsset,
+                                    width: 30,
+                                    height: 30,
+                                    fit: BoxFit.contain,
+                                  ),
                           ),
                           const SizedBox(height: 7),
                           Text(
@@ -1386,8 +1423,10 @@ class EffectsTabContent extends StatefulWidget {
   final Function(String?)? onFolderChanged;
   final bool showCreateEffect;
   final VoidCallback? onCreateEffectBack;
-  final Function(bool)? onConfigScreenChanged; // Notify parent about config screen state
-  final Function(VoidCallback?)? onSaveCallbackChanged; // Pass save callback from effect config screens
+  final Function(bool)?
+  onConfigScreenChanged; // Notify parent about config screen state
+  final Function(VoidCallback?)?
+  onSaveCallbackChanged; // Pass save callback from effect config screens
 
   const EffectsTabContent({
     super.key,
@@ -2287,7 +2326,7 @@ class _EffectsTabContentState extends State<EffectsTabContent>
         onSaveCallbackChanged: widget.onSaveCallbackChanged,
       );
     }
-    
+
     if (_folderPath.isEmpty) {
       return _buildFoldersGrid();
     } else if (_folderPath.length == 1 && _folderPath[0] == 'Holidays') {
@@ -2998,10 +3037,7 @@ class MusicTabContent extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFF2A2A2A),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.1),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.3),

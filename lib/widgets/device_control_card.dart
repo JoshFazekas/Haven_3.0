@@ -47,6 +47,7 @@ class DeviceControlCard extends StatefulWidget {
   final VoidCallback? onAllLightsOn;
   final VoidCallback? onAllLightsOff;
   final VoidCallback? onImageViewTap;
+  final VoidCallback? onColorPaletteTap;
   final bool isImageViewActive;
 
   /// Current state colors from each light/zone card.
@@ -59,6 +60,7 @@ class DeviceControlCard extends StatefulWidget {
     this.onAllLightsOn,
     this.onAllLightsOff,
     this.onImageViewTap,
+    this.onColorPaletteTap,
     this.isImageViewActive = false,
     this.lightColors = const [],
   });
@@ -115,7 +117,9 @@ class _DeviceControlCardState extends State<DeviceControlCard>
       width: double.infinity,
       height: AllLightsZonesStyle.cardHeight,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AllLightsZonesStyle.cardBorderRadius),
+        borderRadius: BorderRadius.circular(
+          AllLightsZonesStyle.cardBorderRadius,
+        ),
         color: AllLightsZonesStyle.cardBackgroundColor,
       ),
       padding: AllLightsZonesStyle.cardPadding,
@@ -133,15 +137,9 @@ class _DeviceControlCardState extends State<DeviceControlCard>
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(
-                    flex: 1,
-                    child: _buildButton('OFF', isOn: false),
-                  ),
+                  Expanded(flex: 1, child: _buildButton('OFF', isOn: false)),
                   const SizedBox(width: 12),
-                  Expanded(
-                    flex: 1,
-                    child: _buildButton('ON', isOn: true),
-                  ),
+                  Expanded(flex: 1, child: _buildButton('ON', isOn: true)),
                   const Spacer(flex: 2),
                 ],
               ),
@@ -161,6 +159,7 @@ class _DeviceControlCardState extends State<DeviceControlCard>
                   borderColor: AllLightsZonesStyle.colorPaletteBorder,
                   onTap: () {
                     HapticFeedback.mediumImpact();
+                    widget.onColorPaletteTap?.call();
                     debugPrint('Color palette tapped');
                   },
                 ),
@@ -210,8 +209,13 @@ class _DeviceControlCardState extends State<DeviceControlCard>
         padding: AllLightsZonesStyle.buttonPadding,
         decoration: BoxDecoration(
           color: AllLightsZonesStyle.buttonBackgroundColor,
-          borderRadius: BorderRadius.circular(AllLightsZonesStyle.buttonBorderRadius),
-          border: Border.all(color: AllLightsZonesStyle.buttonBorderColor, width: 1),
+          borderRadius: BorderRadius.circular(
+            AllLightsZonesStyle.buttonBorderRadius,
+          ),
+          border: Border.all(
+            color: AllLightsZonesStyle.buttonBorderColor,
+            width: 1,
+          ),
         ),
         child: Text(
           label,
@@ -234,9 +238,15 @@ class _DeviceControlCardState extends State<DeviceControlCard>
         padding: const EdgeInsets.all(AllLightsZonesStyle.iconButtonPadding),
         decoration: BoxDecoration(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(AllLightsZonesStyle.iconButtonRadius),
+          borderRadius: BorderRadius.circular(
+            AllLightsZonesStyle.iconButtonRadius,
+          ),
         ),
-        child: Icon(icon, color: Colors.white, size: AllLightsZonesStyle.iconSize),
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: AllLightsZonesStyle.iconSize,
+        ),
       ),
     );
   }
@@ -253,9 +263,15 @@ class _DeviceControlCardState extends State<DeviceControlCard>
         padding: const EdgeInsets.all(AllLightsZonesStyle.iconButtonPadding),
         decoration: BoxDecoration(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(AllLightsZonesStyle.iconButtonRadius),
+          borderRadius: BorderRadius.circular(
+            AllLightsZonesStyle.iconButtonRadius,
+          ),
         ),
-        child: Image.asset(imagePath, width: AllLightsZonesStyle.iconSize, height: AllLightsZonesStyle.iconSize),
+        child: Image.asset(
+          imagePath,
+          width: AllLightsZonesStyle.iconSize,
+          height: AllLightsZonesStyle.iconSize,
+        ),
       ),
     );
   }
