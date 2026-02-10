@@ -68,6 +68,21 @@ class _LightZoneCardState extends State<LightZoneCard>
   @override
   void didUpdateWidget(LightZoneCard oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    // Re-sync local state when the underlying item data changes (e.g. after refresh)
+    final newItem = widget.item;
+    final oldItem = oldWidget.item;
+    if (newItem.colorId != oldItem.colorId ||
+        newItem.lightBrightnessId != oldItem.lightBrightnessId ||
+        newItem.lightingStatusId != oldItem.lightingStatusId ||
+        newItem.lightingStatus != oldItem.lightingStatus) {
+      setState(() {
+        _isOn = newItem.isCurrentlyOn;
+        _brightness = newItem.brightnessPercent.toDouble();
+        _selectedColor = newItem.initialColor;
+      });
+    }
+
     // Handle external force on/off state changes
     if (widget.forceIsOn != null && widget.forceIsOn != oldWidget.forceIsOn) {
       setState(() {

@@ -904,6 +904,7 @@ class _LightsScreenState extends State<LightsScreen>
     for (final item in items) {
       cards.add(
         Padding(
+          key: ValueKey('${item.itemType}_${item.zoneNumber}_${item.name}'),
           padding: const EdgeInsets.only(bottom: 8),
           child: LightZoneCard(
             item: item,
@@ -976,6 +977,10 @@ class _LightsScreenState extends State<LightsScreen>
         setState(() {
           _selectedTabIndex = index;
         });
+        // Refresh light states when tapping the Lights tab
+        if (index == 0) {
+          _locationDataService.refreshCurrentLocation();
+        }
         debugPrint('Tab $index tapped: $label');
       },
       behavior: HitTestBehavior.opaque,
