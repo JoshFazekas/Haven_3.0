@@ -839,7 +839,7 @@ class _LightsScreenState extends State<LightsScreen>
   }
 
   /// Builds individual light/zone cards from LocationDataService data.
-  /// First renders zone cards, then individual visible light cards.
+  /// Zones first, then visible lights — all driven by the [LightZoneItem] model.
   List<Widget> _buildLightZoneCards() {
     final List<Widget> cards = [];
     final service = _locationDataService;
@@ -847,41 +847,16 @@ class _LightsScreenState extends State<LightsScreen>
 
     debugPrint('=== Building light zone cards ===');
 
-    // 1. Add zone cards
-    for (final zone in service.zones) {
+    // Build cards from all zones + visible lights (shared logic)
+    final items = [...service.zones, ...service.visibleLights];
+    for (final item in items) {
       cards.add(
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: LightZoneCard(
-            channelName: 'Zone ${zone.zoneNumber}',
-            lightName: zone.name,
-            controllerTypeName: zone.displayType,
+            item: item,
             locationId: locationId,
             forceIsOn: _forceAllLightsState,
-            initialIsOn: zone.isCurrentlyOn,
-            initialBrightness: zone.brightnessPercent.toDouble(),
-            colorCapability: zone.colorCapability,
-            lightType: zone.type,
-          ),
-        ),
-      );
-    }
-
-    // 2. Add visible light cards
-    for (final light in service.visibleLights) {
-      cards.add(
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: LightZoneCard(
-            channelName: 'Channel ${light.zoneNumber}',
-            lightName: light.name,
-            controllerTypeName: light.displayType,
-            locationId: locationId,
-            forceIsOn: _forceAllLightsState,
-            initialIsOn: light.isCurrentlyOn,
-            initialBrightness: light.brightnessPercent.toDouble(),
-            colorCapability: light.colorCapability,
-            lightType: light.type,
           ),
         ),
       );
@@ -896,13 +871,19 @@ class _LightsScreenState extends State<LightsScreen>
           for (int i = 0; i < lights.length; i++) {
             final lightName = lights[i].trim();
             if (lightName.isNotEmpty) {
+              // Wrap legacy device data in a LightZoneItem
+              final fallbackItem = LightZoneItem(
+                itemType: 'Light',
+                name: lightName,
+                isHidden: false,
+                zoneNumber: i + 1,
+                type: device.controllerTypeName,
+              );
               cards.add(
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: LightZoneCard(
-                    channelName: 'Channel ${i + 1}',
-                    lightName: lightName,
-                    controllerTypeName: device.controllerTypeName,
+                    item: fallbackItem,
                     locationId: locationId,
                     forceIsOn: _forceAllLightsState,
                   ),

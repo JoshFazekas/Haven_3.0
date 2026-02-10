@@ -1,35 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../core/services/location_data_service.dart';
 import '../screens/light_control_wrapper.dart';
 import 'effect_painters.dart';
 
-/// A card displaying a single light/zone with channel name and light name
+/// A card displaying a single light/zone.
+///
+/// All display data (name, color, brightness, on/off, capability, type) is
+/// read directly from the [LightZoneItem] model — no manual mapping needed.
 class LightZoneCard extends StatefulWidget {
-  final String channelName;
-  final String lightName;
-  final String? controllerTypeName;
-  final int? lightId;
-  final int? zoneId;
+  /// The API model for this light or zone.
+  final LightZoneItem item;
+
+  /// Location ID for API calls.
   final int? locationId;
-  final bool? forceIsOn; // External control for on/off state
-  final bool? initialIsOn; // Initial on/off from API lighting status
-  final double? initialBrightness; // Initial brightness % from API (0–100)
-  final String? colorCapability; // "Legacy" or "Extended"
-  final String? lightType; // e.g. "TRIM LIGHT", "K SERIES"
+
+  /// External on/off override (e.g. "turn all lights on/off").
+  final bool? forceIsOn;
 
   const LightZoneCard({
     super.key,
-    required this.channelName,
-    required this.lightName,
-    this.controllerTypeName,
-    this.lightId,
-    this.zoneId,
+    required this.item,
     this.locationId,
     this.forceIsOn,
-    this.initialIsOn,
-    this.initialBrightness,
-    this.colorCapability,
-    this.lightType,
   });
 
   @override
@@ -44,16 +37,16 @@ class _LightZoneCardState extends State<LightZoneCard>
   Map<String, dynamic>? _playingEffectConfig;
   AnimationController? _effectAnimationController;
 
-  // White temperature color values to detect
+  // White temperature color values to detect (must match ColorCapability whites)
   static const Set<int> _whiteTemperatureValues = {
-    0xFFF8E96C,
-    0xFFF6F08E,
-    0xFFF4F4AC,
-    0xFFF2F4C2,
-    0xFFECF5DA,
-    0xFFE3F3E9,
-    0xFFDDF1F2,
-    0xFFD6EFF6,
+    0xFFFFAE5E, // 2700K
+    0xFFFFC880, // 3000K
+    0xFFFFDCA8, // 3500K
+    0xFFFFE2B8, // 3700K
+    0xFFFFEBCC, // 4000K
+    0xFFFFEDD4, // 4100K
+    0xFFF5F0E0, // 4700K
+    0xFFF0F0F0, // 5000K
   };
 
   bool _isWhiteTemperature(Color color) {
@@ -63,8 +56,9 @@ class _LightZoneCardState extends State<LightZoneCard>
   @override
   void initState() {
     super.initState();
-    _isOn = widget.initialIsOn ?? false;
-    _brightness = widget.initialBrightness ?? 100.0;
+    _isOn = widget.item.isCurrentlyOn;
+    _brightness = widget.item.brightnessPercent.toDouble();
+    _selectedColor = widget.item.initialColor;
     _effectAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 4),
@@ -93,7 +87,7 @@ class _LightZoneCardState extends State<LightZoneCard>
     setState(() {
       _isOn = !_isOn;
     });
-    debugPrint('Toggle tapped for ${widget.lightName}: $_isOn');
+    debugPrint('Toggle tapped for ${widget.item.name}: $_isOn');
   }
 
   void _openColorPalette() {
@@ -102,13 +96,13 @@ class _LightZoneCardState extends State<LightZoneCard>
       context,
       MaterialPageRoute(
         builder: (context) => LightControlWrapper(
-          lightName: widget.lightName,
-          controllerTypeName: widget.controllerTypeName,
-          lightId: widget.lightId,
-          zoneId: widget.zoneId,
+          lightName: widget.item.name,
+          controllerTypeName: widget.item.displayType,
+          lightId: null,
+          zoneId: null,
           locationId: widget.locationId,
-          colorCapability: widget.colorCapability,
-          lightType: widget.lightType,
+          colorCapability: widget.item.colorCapability,
+          lightType: widget.item.type,
           initialTabIndex: 0,
           initialColor: _selectedColor,
           initialIsOn: _isOn,
@@ -131,7 +125,7 @@ class _LightZoneCardState extends State<LightZoneCard>
               }
             });
             debugPrint(
-              'Light ${widget.lightName} updated: Color=$color, IsOn=$isOn, Brightness=$brightness, Effect=${effectConfig?['effectType']}',
+              'Light ${widget.item.name} updated: Color=$color, IsOn=$isOn, Brightness=$brightness, Effect=${effectConfig?['effectType']}',
             );
           },
         ),
@@ -357,7 +351,7 @@ class _LightZoneCardState extends State<LightZoneCard>
                             // Light name top left
                             Flexible(
                               child: Text(
-                                widget.lightName,
+                                widget.item.name,
                                 style: const TextStyle(
                                   fontFamily: 'SpaceMono',
                                   fontSize: 16,
@@ -370,10 +364,9 @@ class _LightZoneCardState extends State<LightZoneCard>
                             ),
                             const SizedBox(width: 12),
                             // Controller type top right
-                            if (widget.controllerTypeName != null &&
-                                widget.controllerTypeName!.isNotEmpty)
+                            if (widget.item.displayType.isNotEmpty)
                               Text(
-                                widget.controllerTypeName!,
+                                widget.item.displayType,
                                 style: const TextStyle(
                                   fontFamily: 'SpaceMono',
                                   fontSize: 11,
@@ -422,7 +415,7 @@ class _LightZoneCardState extends State<LightZoneCard>
                               behavior: HitTestBehavior.opaque,
                               onTap: () {
                                 HapticFeedback.mediumImpact();
-                                debugPrint('Menu tapped for ${widget.lightName}');
+                                debugPrint('Menu tapped for ${widget.item.name}');
                               },
                               child: const Icon(
                                 Icons.more_vert,

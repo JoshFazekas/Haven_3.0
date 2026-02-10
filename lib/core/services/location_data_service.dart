@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:haven/core/services/auth_service.dart';
 import 'package:haven/core/services/auth_state.dart';
+import 'package:haven/core/utils/color_capability.dart';
 import 'package:haven/core/utils/lighting_status.dart';
 
 // ─────────────────────────── Models ───────────────────────────
@@ -13,6 +15,8 @@ class LightZoneItem {
   final String itemType;
   final String name;
   final String? lightColor;
+  final int? colorId; // Color ID from API (e.g. 21 = Green)
+  final String? colorName; // Color name from API (e.g. "Green")
   final int? lightBrightnessId;
   final bool isHidden;
   final int zoneNumber;
@@ -25,6 +29,8 @@ class LightZoneItem {
     required this.itemType,
     required this.name,
     this.lightColor,
+    this.colorId,
+    this.colorName,
     this.lightBrightnessId,
     required this.isHidden,
     required this.zoneNumber,
@@ -36,6 +42,9 @@ class LightZoneItem {
 
   bool get isZone => itemType == 'Zone';
   bool get isLight => itemType == 'Light';
+
+  /// Display label for the channel/zone number, e.g. "Zone 1" or "Channel 2".
+  String get channelLabel => isZone ? 'Zone $zoneNumber' : 'Channel $zoneNumber';
 
   /// Whether this light/zone is currently on, derived from API data.
   bool get isCurrentlyOn => LightingStatus.isOn(
@@ -55,6 +64,12 @@ class LightZoneItem {
   String get brightnessLabel =>
       LightingStatus.brightnessLabel(lightBrightnessId);
 
+  /// The actual [Color] for this light based on its [colorId] and [colorCapability].
+  /// Falls back to warm white (2700K) if the ID isn't found.
+  Color get initialColor =>
+      ColorCapability.colorForId(colorId ?? 0, capability: colorCapability) ??
+      const Color(0xFFFFAE5E); // 2700K warm white fallback
+
   /// Display-friendly type name. Maps API type values to user-facing labels.
   String get displayType {
     switch (type.toUpperCase()) {
@@ -70,6 +85,8 @@ class LightZoneItem {
       itemType: json['t'] as String? ?? 'Light',
       name: json['name'] as String? ?? '',
       lightColor: json['lightColor'] as String?,
+      colorId: json['colorId'] as int?,
+      colorName: json['colorName'] as String?,
       lightBrightnessId: json['lightBrightnessId'] as int?,
       isHidden: json['isHidden'] as bool? ?? false,
       zoneNumber: json['zoneNumber'] as int? ?? 0,
@@ -84,6 +101,8 @@ class LightZoneItem {
         't': itemType,
         'name': name,
         'lightColor': lightColor,
+        'colorId': colorId,
+        'colorName': colorName,
         'lightBrightnessId': lightBrightnessId,
         'isHidden': isHidden,
         'zoneNumber': zoneNumber,
