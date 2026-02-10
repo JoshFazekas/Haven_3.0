@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:haven/core/services/auth_service.dart';
 import 'package:haven/core/services/auth_state.dart';
+import 'package:haven/core/utils/lighting_status.dart';
 
 // ─────────────────────────── Models ───────────────────────────
 
@@ -16,6 +17,8 @@ class LightZoneItem {
   final bool isHidden;
   final int zoneNumber;
   final String type; // e.g. "FULL COLOR", "K SERIES", "TRIM LIGHT", "L902"
+  final int? lightingStatusId; // e.g. 1 = OFF, 3 = SOLID_COLOR, etc.
+  final String? lightingStatus; // e.g. "OFF", "SOLID_COLOR"
 
   LightZoneItem({
     required this.itemType,
@@ -25,10 +28,40 @@ class LightZoneItem {
     required this.isHidden,
     required this.zoneNumber,
     required this.type,
+    this.lightingStatusId,
+    this.lightingStatus,
   });
 
   bool get isZone => itemType == 'Zone';
   bool get isLight => itemType == 'Light';
+
+  /// Whether this light/zone is currently on, derived from API data.
+  bool get isCurrentlyOn => LightingStatus.isOn(
+        lightingStatus: lightingStatus,
+        brightnessId: lightBrightnessId,
+      );
+
+  /// Brightness as a display percentage (0–100), e.g. 80.
+  int get brightnessPercent =>
+      LightingStatus.brightnessPercent(lightBrightnessId);
+
+  /// Brightness as a 0.0–1.0 fraction (handy for sliders / opacity).
+  double get brightnessFraction =>
+      LightingStatus.brightnessFraction(lightBrightnessId);
+
+  /// Human-readable brightness string, e.g. "80%".
+  String get brightnessLabel =>
+      LightingStatus.brightnessLabel(lightBrightnessId);
+
+  /// Display-friendly type name. Maps API type values to user-facing labels.
+  String get displayType {
+    switch (type.toUpperCase()) {
+      case 'TRIM LIGHT':
+        return 'X Series';
+      default:
+        return type;
+    }
+  }
 
   factory LightZoneItem.fromJson(Map<String, dynamic> json) {
     return LightZoneItem(
@@ -39,6 +72,8 @@ class LightZoneItem {
       isHidden: json['isHidden'] as bool? ?? false,
       zoneNumber: json['zoneNumber'] as int? ?? 0,
       type: json['type'] as String? ?? '',
+      lightingStatusId: json['lightingStatusId'] as int?,
+      lightingStatus: json['lightingStatus'] as String?,
     );
   }
 
@@ -50,6 +85,8 @@ class LightZoneItem {
         'isHidden': isHidden,
         'zoneNumber': zoneNumber,
         'type': type,
+        'lightingStatusId': lightingStatusId,
+        'lightingStatus': lightingStatus,
       };
 }
 

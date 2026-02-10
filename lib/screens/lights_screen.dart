@@ -855,9 +855,11 @@ class _LightsScreenState extends State<LightsScreen>
           child: LightZoneCard(
             channelName: 'Zone ${zone.zoneNumber}',
             lightName: zone.name,
-            controllerTypeName: zone.type,
+            controllerTypeName: zone.displayType,
             locationId: locationId,
             forceIsOn: _forceAllLightsState,
+            initialIsOn: zone.isCurrentlyOn,
+            initialBrightness: zone.brightnessPercent.toDouble(),
           ),
         ),
       );
@@ -871,9 +873,11 @@ class _LightsScreenState extends State<LightsScreen>
           child: LightZoneCard(
             channelName: 'Channel ${light.zoneNumber}',
             lightName: light.name,
-            controllerTypeName: light.type,
+            controllerTypeName: light.displayType,
             locationId: locationId,
             forceIsOn: _forceAllLightsState,
+            initialIsOn: light.isCurrentlyOn,
+            initialBrightness: light.brightnessPercent.toDouble(),
           ),
         ),
       );

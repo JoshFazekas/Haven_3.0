@@ -12,6 +12,8 @@ class LightZoneCard extends StatefulWidget {
   final int? zoneId;
   final int? locationId;
   final bool? forceIsOn; // External control for on/off state
+  final bool? initialIsOn; // Initial on/off from API lighting status
+  final double? initialBrightness; // Initial brightness % from API (0–100)
 
   const LightZoneCard({
     super.key,
@@ -22,6 +24,8 @@ class LightZoneCard extends StatefulWidget {
     this.zoneId,
     this.locationId,
     this.forceIsOn,
+    this.initialIsOn,
+    this.initialBrightness,
   });
 
   @override
@@ -55,6 +59,8 @@ class _LightZoneCardState extends State<LightZoneCard>
   @override
   void initState() {
     super.initState();
+    _isOn = widget.initialIsOn ?? false;
+    _brightness = widget.initialBrightness ?? 100.0;
     _effectAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 4),
