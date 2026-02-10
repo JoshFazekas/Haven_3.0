@@ -276,6 +276,24 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     });
   }
 
+  /// Fires the On/Off API command. Call this only from explicit user
+  /// toggle actions (the switch), NOT when turning on as a side-effect
+  /// of selecting a color (SetColor already handles that).
+  void _onToggleCommand(bool isOn) {
+    final id = widget.lightId ?? widget.zoneId;
+    final type = widget.lightId != null ? 'Light' : 'Zone';
+
+    if (id != null) {
+      final command = isOn
+          ? CommandService().turnOn(id: id, type: type)
+          : CommandService().turnOff(id: id, type: type);
+
+      command.catchError((e) {
+        debugPrint('Toggle command failed: $e');
+      });
+    }
+  }
+
   void _onBrightnessChanged(double brightness) {
     setState(() {
       _brightness = brightness;
@@ -794,6 +812,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
                                   });
                                 }
                                 _onIsOnChanged(value);
+                                _onToggleCommand(value);
                               },
                               activeColor: Colors.white,
                               activeTrackColor: _isOn

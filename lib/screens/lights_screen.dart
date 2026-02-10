@@ -36,6 +36,7 @@ class _LightsScreenState extends State<LightsScreen>
 
   // Tab navigation state
   int _selectedTabIndex = 0;
+  bool _tabAnimationPending = false; // Only animate tab icon on actual tap
   AnimationController? _lightsTabAnimController;
   AnimationController? _scheduleTabAnimController;
   AnimationController? _scenesTabAnimController;
@@ -976,6 +977,7 @@ class _LightsScreenState extends State<LightsScreen>
         HapticFeedback.selectionClick();
         setState(() {
           _selectedTabIndex = index;
+          _tabAnimationPending = true;
         });
         // Refresh light states when tapping the Lights tab
         if (index == 0) {
@@ -1003,21 +1005,26 @@ class _LightsScreenState extends State<LightsScreen>
                         loadInController.forward();
                       },
                     )
-                  : isSelected
+                  : isSelected && _tabAnimationPending
                   ? Lottie.asset(
                       animationPath,
                       controller: controller,
                       repeat: false,
                       onLoaded: (composition) {
                         controller?.duration = composition.duration;
-                        // Play the animation once when loaded
                         controller?.reset();
-                        controller?.forward();
+                        controller?.forward().then((_) {
+                          if (mounted) {
+                            setState(() {
+                              _tabAnimationPending = false;
+                            });
+                          }
+                        });
                       },
                     )
                   : Image.asset(
                       staticAssetPath,
-                      color: const Color(0xFF6E6E6E),
+                      color: isSelected ? null : const Color(0xFF6E6E6E),
                     ),
             ),
           ),

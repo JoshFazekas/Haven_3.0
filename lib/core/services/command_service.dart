@@ -5,6 +5,7 @@ import 'package:haven/core/config/environment.dart';
 import 'package:haven/core/services/api_logger.dart';
 import 'package:haven/core/services/auth_state.dart';
 import 'package:haven/core/services/location_data_service.dart';
+import 'package:haven/core/services/haven_api.dart';
 
 /// Service for sending commands to the Haven lighting API.
 ///
@@ -124,6 +125,84 @@ class CommandService {
 
       throw CommandException(
         'Failed to set color. Please check your connection and try again.',
+      );
+    }
+  }
+
+  // ─────────────────────── Turn Off ───────────────────────
+
+  /// Sends the **Off** command for a single light or zone.
+  ///
+  /// Flow: optimistic update → fire-and-forget API call (no refresh).
+  ///
+  /// ```dart
+  /// await CommandService().turnOff(id: 1022, type: 'Light');
+  /// ```
+  Future<void> turnOff({
+    required int id,
+    required String type,
+  }) async {
+    // ── 1. Optimistic update ──
+    if (type == 'Light') {
+      LocationDataService().optimisticToggle(lightId: id, isOn: false);
+    }
+
+    // ── 2. Fire the API call ──
+    try {
+      final response = await HavenApi().turnOff(id: id, type: type);
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint('CommandService: Off succeeded — id=$id, type=$type');
+      } else if (response.statusCode == 401) {
+        throw CommandException('Authentication failed. Please sign in again.');
+      } else {
+        throw CommandException(
+          'Off failed (${response.statusCode}): ${response.body}',
+        );
+      }
+    } catch (e) {
+      if (e is CommandException) rethrow;
+      throw CommandException(
+        'Failed to turn off. Please check your connection and try again.',
+      );
+    }
+  }
+
+  // ─────────────────────── Turn On ───────────────────────
+
+  /// Sends the **On** command for a single light or zone.
+  ///
+  /// Flow: optimistic update → fire-and-forget API call (no refresh).
+  ///
+  /// ```dart
+  /// await CommandService().turnOn(id: 1022, type: 'Light');
+  /// ```
+  Future<void> turnOn({
+    required int id,
+    required String type,
+  }) async {
+    // ── 1. Optimistic update ──
+    if (type == 'Light') {
+      LocationDataService().optimisticToggle(lightId: id, isOn: true);
+    }
+
+    // ── 2. Fire the API call ──
+    try {
+      final response = await HavenApi().turnOn(id: id, type: type);
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint('CommandService: On succeeded — id=$id, type=$type');
+      } else if (response.statusCode == 401) {
+        throw CommandException('Authentication failed. Please sign in again.');
+      } else {
+        throw CommandException(
+          'On failed (${response.statusCode}): ${response.body}',
+        );
+      }
+    } catch (e) {
+      if (e is CommandException) rethrow;
+      throw CommandException(
+        'Failed to turn on. Please check your connection and try again.',
       );
     }
   }

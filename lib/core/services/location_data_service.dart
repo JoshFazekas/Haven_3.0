@@ -345,6 +345,34 @@ class LocationDataService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Optimistically toggle a light or zone on/off in the local data.
+  ///
+  /// When [isOn] is `false` → sets `lightingStatus` to `"OFF"` / `lightingStatusId` to `1`.
+  /// When [isOn] is `true`  → sets `lightingStatus` to `"SOLID_COLOR"` / `lightingStatusId` to `3`.
+  ///
+  /// After calling this, fire the real API command and then call
+  /// [refreshCurrentLocation] to reconcile with the server.
+  void optimisticToggle({
+    required int lightId,
+    required bool isOn,
+  }) {
+    final idx = _zonesAndLights.indexWhere((item) => item.lightId == lightId);
+    if (idx == -1) return;
+
+    final old = _zonesAndLights[idx];
+
+    _zonesAndLights[idx] = old.copyWith(
+      lightingStatus: isOn ? 'SOLID_COLOR' : 'OFF',
+      lightingStatusId: isOn ? 3 : 1,
+    );
+
+    debugPrint(
+      'LocationDataService: Optimistic toggle — '
+      'light $lightId → ${isOn ? 'ON' : 'OFF'}',
+    );
+    notifyListeners();
+  }
+
   /// Switch to a different location. Clears old data, fetches fresh data
   /// from the API, and stores the result.
   ///

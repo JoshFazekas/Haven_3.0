@@ -157,6 +157,40 @@ class HavenApi {
     return _postRaw(url, headers: _authHeaders(), body: body, label: 'SetColor');
   }
 
+  /// **POST** `/api/Commands/Off`
+  ///
+  /// Turns a light or zone **off**.
+  ///
+  /// - [id]   – `lightId` or zone ID from location data.
+  /// - [type] – `"Light"` or `"Zone"`.
+  Future<http.Response> turnOff({
+    required int id,
+    required String type,
+  }) async {
+    const path = '/api/Commands/Off';
+    final url = '$baseUrl$path';
+    final body = {'id': id, 'type': type};
+
+    return _postRaw(url, headers: _authHeaders(), body: body, label: 'Off');
+  }
+
+  /// **POST** `/api/Commands/On`
+  ///
+  /// Turns a light or zone **on** (restores its last color/brightness).
+  ///
+  /// - [id]   – `lightId` or zone ID from location data.
+  /// - [type] – `"Light"` or `"Zone"`.
+  Future<http.Response> turnOn({
+    required int id,
+    required String type,
+  }) async {
+    const path = '/api/Commands/On';
+    final url = '$baseUrl$path';
+    final body = {'id': id, 'type': type};
+
+    return _postRaw(url, headers: _authHeaders(), body: body, label: 'On');
+  }
+
   // ═══════════════════════════════════════════════════════════
   //  5.  DEVICE  —  /api/Device
   // ═══════════════════════════════════════════════════════════
