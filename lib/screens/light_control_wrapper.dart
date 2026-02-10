@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import '../widgets/effect_painters.dart';
 import '../core/utils/color_capability.dart';
+import '../core/services/command_service.dart';
 import 'create_effect_screen.dart';
 
 // ─────────────── Tab definition ───────────────
@@ -245,7 +246,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     });
   }
 
-  void _onColorChanged(Color color) {
+  void _onColorChanged(Color color, {int? colorId}) {
     setState(() {
       _selectedColor = color;
       // Stop any playing effect when a color is selected
@@ -255,6 +256,18 @@ class _LightControlWrapperState extends State<LightControlWrapper>
         _effectAnimationController?.reset();
       }
     });
+
+    // Fire the SetColor API command if we have a light/zone ID and a color ID
+    if (colorId != null) {
+      final id = widget.lightId ?? widget.zoneId;
+      final type = widget.lightId != null ? 'Light' : 'Zone';
+
+      if (id != null) {
+        CommandService().setColor(id: id, type: type, colorId: colorId).catchError((e) {
+          debugPrint('SetColor command failed: $e');
+        });
+      }
+    }
   }
 
   void _onIsOnChanged(bool isOn) {
@@ -1141,7 +1154,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
 // Content-only widgets for each tab (no tab selector, no light card, no app bar)
 class ColorsTabContent extends StatelessWidget {
   final Color selectedColor;
-  final Function(Color) onColorChanged;
+  final Function(Color, {int? colorId}) onColorChanged;
   final bool isOn;
   final Function(bool) onIsOnChanged;
   final Function(double) onBrightnessChanged;
@@ -1179,6 +1192,7 @@ class ColorsTabContent extends StatelessWidget {
           final entry = palette[index];
           final colorName = entry['name'] as String;
           final color = entry['color'] as Color;
+          final entryColorId = entry['id'] as int;
           // No color is selected when an effect is playing
           final isSelected = !isEffectPlaying && color == selectedColor;
 
@@ -1191,7 +1205,7 @@ class ColorsTabContent extends StatelessWidget {
           return GestureDetector(
             onTap: () {
               HapticFeedback.mediumImpact();
-              onColorChanged(color);
+              onColorChanged(color, colorId: entryColorId);
               if (!isOn) {
                 onBrightnessChanged(100.0);
                 onIsOnChanged(true);
@@ -1242,7 +1256,7 @@ class ColorsTabContent extends StatelessWidget {
 
 class WhitesTabContent extends StatelessWidget {
   final Color selectedColor;
-  final Function(Color) onColorChanged;
+  final Function(Color, {int? colorId}) onColorChanged;
   final bool isOn;
   final Function(bool) onIsOnChanged;
   final Function(double) onBrightnessChanged;
@@ -1280,6 +1294,7 @@ class WhitesTabContent extends StatelessWidget {
           final entry = palette[index];
           final tempName = entry['name'] as String;
           final color = entry['color'] as Color;
+          final entryColorId = entry['id'] as int;
           // No color is selected when an effect is playing
           final isSelected = !isEffectPlaying && color == selectedColor;
 
@@ -1290,7 +1305,7 @@ class WhitesTabContent extends StatelessWidget {
           return GestureDetector(
             onTap: () {
               HapticFeedback.mediumImpact();
-              onColorChanged(color);
+              onColorChanged(color, colorId: entryColorId);
               if (!isOn) {
                 onBrightnessChanged(100.0);
                 onIsOnChanged(true);
@@ -1341,7 +1356,7 @@ class WhitesTabContent extends StatelessWidget {
 
 class EffectsTabContent extends StatefulWidget {
   final Color selectedColor;
-  final Function(Color) onColorChanged;
+  final Function(Color, {int? colorId}) onColorChanged;
   final Function(Map<String, dynamic> effectConfig)? onEffectStarted;
   final Function()? onEffectStopped;
   final Map<String, dynamic>? playingEffectConfig;
@@ -2941,7 +2956,7 @@ class _EffectsTabContentState extends State<EffectsTabContent>
 
 class MusicTabContent extends StatelessWidget {
   final Color selectedColor;
-  final Function(Color) onColorChanged;
+  final Function(Color, {int? colorId}) onColorChanged;
 
   const MusicTabContent({
     super.key,

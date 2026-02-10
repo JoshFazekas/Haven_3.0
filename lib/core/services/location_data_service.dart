@@ -13,6 +13,7 @@ import 'package:haven/core/utils/lighting_status.dart';
 class LightZoneItem {
   /// "Zone" or "Light"
   final String itemType;
+  final int? lightId; // Unique light ID from API (used in Commands)
   final String name;
   final String? lightColor;
   final int? colorId; // Color ID from API (e.g. 21 = Green)
@@ -27,6 +28,7 @@ class LightZoneItem {
 
   LightZoneItem({
     required this.itemType,
+    this.lightId,
     required this.name,
     this.lightColor,
     this.colorId,
@@ -80,9 +82,43 @@ class LightZoneItem {
     }
   }
 
+  /// Returns a copy of this item with the given fields replaced.
+  LightZoneItem copyWith({
+    String? itemType,
+    int? lightId,
+    String? name,
+    String? lightColor,
+    int? colorId,
+    String? colorName,
+    int? lightBrightnessId,
+    bool? isHidden,
+    int? zoneNumber,
+    String? type,
+    int? lightingStatusId,
+    String? lightingStatus,
+    String? colorCapability,
+  }) {
+    return LightZoneItem(
+      itemType: itemType ?? this.itemType,
+      lightId: lightId ?? this.lightId,
+      name: name ?? this.name,
+      lightColor: lightColor ?? this.lightColor,
+      colorId: colorId ?? this.colorId,
+      colorName: colorName ?? this.colorName,
+      lightBrightnessId: lightBrightnessId ?? this.lightBrightnessId,
+      isHidden: isHidden ?? this.isHidden,
+      zoneNumber: zoneNumber ?? this.zoneNumber,
+      type: type ?? this.type,
+      lightingStatusId: lightingStatusId ?? this.lightingStatusId,
+      lightingStatus: lightingStatus ?? this.lightingStatus,
+      colorCapability: colorCapability ?? this.colorCapability,
+    );
+  }
+
   factory LightZoneItem.fromJson(Map<String, dynamic> json) {
     return LightZoneItem(
       itemType: json['t'] as String? ?? 'Light',
+      lightId: json['lightId'] as int?,
       name: json['name'] as String? ?? '',
       lightColor: json['lightColor'] as String?,
       colorId: json['colorId'] as int?,
@@ -99,6 +135,7 @@ class LightZoneItem {
 
   Map<String, dynamic> toJson() => {
         't': itemType,
+        'lightId': lightId,
         'name': name,
         'lightColor': lightColor,
         'colorId': colorId,
@@ -266,6 +303,45 @@ class LocationDataService extends ChangeNotifier {
     _selectedLocationId = locationId;
     _parseApiResponse(response);
     await _persistToStorage(response);
+    notifyListeners();
+  }
+
+  // ─────────────────── Optimistic Updates ─────────────────────
+
+  /// Optimistically update a light's color in the local data.
+  ///
+  /// Finds the [LightZoneItem] matching [lightId] and replaces its
+  /// `colorId`, `colorName`, `lightingStatus`, and `lightingStatusId`
+  /// so the UI reflects the change immediately — before the API responds.
+  ///
+  /// After calling this, fire the real API command and then call
+  /// [refreshCurrentLocation] to reconcile with the server.
+  void optimisticSetColor({
+    required int lightId,
+    required int colorId,
+    String? colorName,
+  }) {
+    final idx = _zonesAndLights.indexWhere((item) => item.lightId == lightId);
+    if (idx == -1) return;
+
+    final old = _zonesAndLights[idx];
+
+    // Resolve the color name from the palette if not provided
+    final resolvedName = colorName ??
+        ColorCapability.nameForId(colorId, capability: old.colorCapability) ??
+        old.colorName;
+
+    _zonesAndLights[idx] = old.copyWith(
+      colorId: colorId,
+      colorName: resolvedName,
+      lightingStatus: 'SOLID_COLOR',
+      lightingStatusId: 3,
+    );
+
+    debugPrint(
+      'LocationDataService: Optimistic update — '
+      'light $lightId → colorId=$colorId ($resolvedName)',
+    );
     notifyListeners();
   }
 

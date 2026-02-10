@@ -113,7 +113,7 @@ class _LightZoneCardState extends State<LightZoneCard>
         builder: (context) => LightControlWrapper(
           lightName: widget.item.name,
           controllerTypeName: widget.item.displayType,
-          lightId: null,
+          lightId: widget.item.lightId,
           zoneId: null,
           locationId: widget.locationId,
           colorCapability: widget.item.colorCapability,
