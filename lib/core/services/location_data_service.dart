@@ -206,13 +206,20 @@ class LocationDataService extends ChangeNotifier {
   List<ControllerItem> _controllers = [];
   List<EffectItem> _effects = [];
   bool _isLoading = false;
+  bool _isRefreshing = false;
 
   // ── Public getters ──
   int? get selectedLocationId => _selectedLocationId;
   List<LightZoneItem> get zonesAndLights => List.unmodifiable(_zonesAndLights);
   List<ControllerItem> get controllers => List.unmodifiable(_controllers);
   List<EffectItem> get effects => List.unmodifiable(_effects);
+
+  /// True during any fetch (first load or refresh).
   bool get isLoading => _isLoading;
+
+  /// True only during a pull-to-refresh (old data still on screen).
+  bool get isRefreshing => _isRefreshing;
+
   bool get hasData => _zonesAndLights.isNotEmpty || _controllers.isNotEmpty;
 
   /// Convenience: only the visible lights (isHidden == false)
@@ -264,17 +271,53 @@ class LocationDataService extends ChangeNotifier {
 
   /// Switch to a different location. Clears old data, fetches fresh data
   /// from the API, and stores the result.
-  Future<void> switchLocation(int newLocationId) async {
-    if (newLocationId == _selectedLocationId && hasData) return;
+  ///
+  /// Returns `true` if the fetch succeeded.
+  Future<bool> switchLocation(int newLocationId) async {
+    if (newLocationId == _selectedLocationId && hasData) return true;
+    return _fetchLocation(newLocationId, preserveOldData: false);
+  }
+
+  /// Re-fetch the current location's data from the API.
+  /// Old data stays visible until the new response arrives.
+  ///
+  /// Use from pull-to-refresh, background sync, or anywhere you want a
+  /// silent refresh without blanking the UI.
+  ///
+  /// Returns `true` if the fetch succeeded, `false` on error or if no
+  /// location is selected.
+  Future<bool> refreshCurrentLocation() async {
+    final id = _selectedLocationId;
+    if (id == null) return false;
+    return _fetchLocation(id, preserveOldData: true);
+  }
+
+  // ─────────────────────── Private Fetch ──────────────────────
+
+  /// Shared fetch helper used by [switchLocation] and [refreshCurrentLocation].
+  ///
+  /// When [preserveOldData] is true (refresh), the existing zones,
+  /// controllers and effects stay on screen until the API response
+  /// replaces them. When false (location switch), old data is cleared
+  /// immediately so the user doesn't see stale data from a different location.
+  ///
+  /// Guards against concurrent fetches — if a fetch is already in flight
+  /// the call returns `false` immediately.
+  Future<bool> _fetchLocation(int locationId, {required bool preserveOldData}) async {
+    // Prevent overlapping network calls
+    if (_isLoading) return false;
 
     _isLoading = true;
+    _isRefreshing = preserveOldData;
     notifyListeners();
 
-    // Clear old data immediately
-    _zonesAndLights = [];
-    _controllers = [];
-    _effects = [];
-    _selectedLocationId = newLocationId;
+    if (!preserveOldData) {
+      // Clear old data immediately (switching to a different location)
+      _zonesAndLights = [];
+      _controllers = [];
+      _effects = [];
+    }
+    _selectedLocationId = locationId;
 
     try {
       final authState = AuthState();
@@ -286,15 +329,18 @@ class LocationDataService extends ChangeNotifier {
       final authService = AuthService();
       final response = await authService.getLocationLightsZones(
         bearerToken: token,
-        locationId: newLocationId,
+        locationId: locationId,
       );
 
       _parseApiResponse(response);
       await _persistToStorage(response);
+      return true;
     } catch (e) {
-      debugPrint('LocationDataService: Error switching location: $e');
+      debugPrint('LocationDataService: Error fetching location $locationId: $e');
+      return false;
     } finally {
       _isLoading = false;
+      _isRefreshing = false;
       notifyListeners();
     }
   }
