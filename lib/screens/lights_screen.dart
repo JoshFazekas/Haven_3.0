@@ -696,6 +696,7 @@ class _LightsScreenState extends State<LightsScreen>
               DeviceControlCard(
               devices: _devices,
               isImageViewActive: _isImageViewActive,
+              lightColors: _getLightStateColors(),
               onImageViewTap: () {
                 setState(() {
                   _isImageViewActive = !_isImageViewActive;
@@ -836,6 +837,16 @@ class _LightsScreenState extends State<LightsScreen>
       default:
         return const SizedBox.shrink();
     }
+  }
+
+  /// Collects the color for every visible light and zone.
+  /// These are the same colors shown on each individual light/zone card.
+  /// Used as the gradient stroke on the ALL LIGHTS / ZONES container.
+  List<Color> _getLightStateColors() {
+    final service = _locationDataService;
+    final items = [...service.zones, ...service.visibleLights];
+    if (items.isEmpty) return [];
+    return items.map((item) => item.initialColor).toList();
   }
 
   /// Builds individual light/zone cards from LocationDataService data.
