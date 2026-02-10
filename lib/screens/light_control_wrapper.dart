@@ -5,6 +5,7 @@ import 'package:lottie/lottie.dart';
 import '../widgets/effect_painters.dart';
 import '../core/utils/color_capability.dart';
 import '../core/services/command_service.dart';
+import '../core/services/location_data_service.dart';
 import 'create_effect_screen.dart';
 
 // ─────────────── Tab definition ───────────────
@@ -400,6 +401,9 @@ class _LightControlWrapperState extends State<LightControlWrapper>
                   );
                 }
                 Navigator.pop(context);
+                // Reconcile local state with the server now that the
+                // user is done picking colors.
+                LocationDataService().refreshCurrentLocation();
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(

@@ -7,6 +7,7 @@ import 'package:haven/widgets/device_control_card.dart';
 import 'package:haven/widgets/light_zone_card.dart';
 import 'package:haven/widgets/image_view_content.dart';
 import 'package:haven/core/services/bluetooth_scan_service.dart';
+import 'package:haven/core/services/command_service.dart';
 import 'package:haven/core/services/location_data_service.dart';
 import 'package:haven/screens/holiday_presets_screen.dart';
 import 'package:lottie/lottie.dart';
@@ -748,6 +749,8 @@ class _LightsScreenState extends State<LightsScreen>
                 setState(() {
                   _forceAllLightsState = true;
                 });
+                // Fire the API command
+                CommandService().turnAllOn();
                 // Reset after a short delay so future toggles work
                 Future.delayed(const Duration(milliseconds: 100), () {
                   if (mounted) {
@@ -761,6 +764,8 @@ class _LightsScreenState extends State<LightsScreen>
                 setState(() {
                   _forceAllLightsState = false;
                 });
+                // Fire the API command
+                CommandService().turnAllOff();
                 // Reset after a short delay so future toggles work
                 Future.delayed(const Duration(milliseconds: 100), () {
                   if (mounted) {

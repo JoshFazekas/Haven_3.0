@@ -102,15 +102,6 @@ class CommandService {
         debugPrint(
           'CommandService: SetColor succeeded — id=$id, type=$type, colorId=$colorId',
         );
-
-        // ── 3. Background refresh ──
-        // Reconcile local state with the server so all lights/zones
-        // reflect the true current status.
-        LocationDataService().refreshCurrentLocation().then((success) {
-          debugPrint(
-            'CommandService: Background refresh ${success ? 'succeeded' : 'failed'}',
-          );
-        });
       } else if (response.statusCode == 401) {
         throw CommandException('Authentication failed. Please sign in again.');
       } else {
@@ -203,6 +194,86 @@ class CommandService {
       if (e is CommandException) rethrow;
       throw CommandException(
         'Failed to turn on. Please check your connection and try again.',
+      );
+    }
+  }
+
+  // ─────────────── Turn All Lights Off (Location) ───────────────
+
+  /// Sends the **Off** command for the entire location.
+  ///
+  /// Uses `type: "Location"` with the currently selected location ID.
+  /// Optimistically toggles all local items off.
+  ///
+  /// ```dart
+  /// await CommandService().turnAllOff();
+  /// ```
+  Future<void> turnAllOff() async {
+    final locationId = LocationDataService().selectedLocationId;
+    if (locationId == null) {
+      throw CommandException('No location selected.');
+    }
+
+    // ── 1. Optimistic update ──
+    LocationDataService().optimisticToggleAll(isOn: false);
+
+    // ── 2. Fire the API call ──
+    try {
+      final response = await HavenApi().turnOff(id: locationId, type: 'Location');
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint('CommandService: All Off succeeded — locationId=$locationId');
+      } else if (response.statusCode == 401) {
+        throw CommandException('Authentication failed. Please sign in again.');
+      } else {
+        throw CommandException(
+          'All Off failed (${response.statusCode}): ${response.body}',
+        );
+      }
+    } catch (e) {
+      if (e is CommandException) rethrow;
+      throw CommandException(
+        'Failed to turn all lights off. Please check your connection and try again.',
+      );
+    }
+  }
+
+  // ─────────────── Turn All Lights On (Location) ────────────────
+
+  /// Sends the **On** command for the entire location.
+  ///
+  /// Uses `type: "Location"` with the currently selected location ID.
+  /// Optimistically toggles all local items on.
+  ///
+  /// ```dart
+  /// await CommandService().turnAllOn();
+  /// ```
+  Future<void> turnAllOn() async {
+    final locationId = LocationDataService().selectedLocationId;
+    if (locationId == null) {
+      throw CommandException('No location selected.');
+    }
+
+    // ── 1. Optimistic update ──
+    LocationDataService().optimisticToggleAll(isOn: true);
+
+    // ── 2. Fire the API call ──
+    try {
+      final response = await HavenApi().turnOn(id: locationId, type: 'Location');
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint('CommandService: All On succeeded — locationId=$locationId');
+      } else if (response.statusCode == 401) {
+        throw CommandException('Authentication failed. Please sign in again.');
+      } else {
+        throw CommandException(
+          'All On failed (${response.statusCode}): ${response.body}',
+        );
+      }
+    } catch (e) {
+      if (e is CommandException) rethrow;
+      throw CommandException(
+        'Failed to turn all lights on. Please check your connection and try again.',
       );
     }
   }

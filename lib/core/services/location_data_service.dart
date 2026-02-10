@@ -245,6 +245,29 @@ class LocationDataService extends ChangeNotifier {
   bool _isLoading = false;
   bool _isRefreshing = false;
 
+  /// Pending optimistic expectations.
+  ///
+  /// After an optimistic command (toggle, setColor, etc.) we record what
+  /// the server *should* eventually return.  When a refresh completes, we
+  /// compare the server data against these expectations.  If they don't
+  /// match, we re-fetch (up to [_maxReconcileRetries] times) so the
+  /// server has time to commit the change.
+  ///
+  /// Key   = lightId
+  /// Value = expected [_OptimisticExpectation]
+  final Map<int, _OptimisticExpectation> _pendingExpectations = {};
+
+  /// How many times we'll re-fetch when the server data doesn't match
+  /// an optimistic expectation before giving up.
+  static const int _maxReconcileRetries = 3;
+
+  /// Delay between reconciliation retries.
+  static const Duration _reconcileDelay = Duration(milliseconds: 800);
+
+  /// Snapshot of the raw server data from the last fetch (before optimistic
+  /// patches).  Used by [refreshCurrentLocation] to detect mismatches.
+  Map<int, LightZoneItem> _lastServerSnapshot = {};
+
   // ── Public getters ──
   int? get selectedLocationId => _selectedLocationId;
   List<LightZoneItem> get zonesAndLights => List.unmodifiable(_zonesAndLights);
@@ -324,6 +347,13 @@ class LocationDataService extends ChangeNotifier {
     final idx = _zonesAndLights.indexWhere((item) => item.lightId == lightId);
     if (idx == -1) return;
 
+    // Record what we expect the server to eventually return
+    _pendingExpectations[lightId] = _OptimisticExpectation(
+      expectedStatusId: 3, // SOLID_COLOR
+      expectedColorId: colorId,
+      createdAt: DateTime.now(),
+    );
+
     final old = _zonesAndLights[idx];
 
     // Resolve the color name from the palette if not provided
@@ -359,6 +389,12 @@ class LocationDataService extends ChangeNotifier {
     final idx = _zonesAndLights.indexWhere((item) => item.lightId == lightId);
     if (idx == -1) return;
 
+    // Record what we expect the server to eventually return
+    _pendingExpectations[lightId] = _OptimisticExpectation(
+      expectedStatusId: isOn ? 3 : 1,
+      createdAt: DateTime.now(),
+    );
+
     final old = _zonesAndLights[idx];
 
     _zonesAndLights[idx] = old.copyWith(
@@ -373,27 +409,152 @@ class LocationDataService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Optimistically toggle **all** lights and zones in the current location.
+  ///
+  /// Updates every item's `lightingStatus` / `lightingStatusId` so
+  /// the entire list immediately reflects the new state.
+  void optimisticToggleAll({required bool isOn}) {
+    final now = DateTime.now();
+    final expectedStatusId = isOn ? 3 : 1;
+
+    for (int i = 0; i < _zonesAndLights.length; i++) {
+      final item = _zonesAndLights[i];
+      // Record expectation for every item that has a lightId
+      if (item.lightId != null) {
+        _pendingExpectations[item.lightId!] = _OptimisticExpectation(
+          expectedStatusId: expectedStatusId,
+          createdAt: now,
+        );
+      }
+      _zonesAndLights[i] = item.copyWith(
+        lightingStatus: isOn ? 'SOLID_COLOR' : 'OFF',
+        lightingStatusId: isOn ? 3 : 1,
+      );
+    }
+
+    debugPrint(
+      'LocationDataService: Optimistic toggle ALL — '
+      '${_zonesAndLights.length} items → ${isOn ? 'ON' : 'OFF'}',
+    );
+    notifyListeners();
+  }
+
   /// Switch to a different location. Clears old data, fetches fresh data
   /// from the API, and stores the result.
   ///
   /// Returns `true` if the fetch succeeded.
   Future<bool> switchLocation(int newLocationId) async {
     if (newLocationId == _selectedLocationId && hasData) return true;
+    _pendingExpectations.clear();
+    _lastServerSnapshot.clear();
     return _fetchLocation(newLocationId, preserveOldData: false);
   }
 
   /// Re-fetch the current location's data from the API.
   /// Old data stays visible until the new response arrives.
   ///
-  /// Use from pull-to-refresh, background sync, or anywhere you want a
-  /// silent refresh without blanking the UI.
+  /// After the fetch, if any pending optimistic expectations don't match
+  /// the server data, the service will **re-fetch** (up to
+  /// [_maxReconcileRetries] times with a short delay) so the server has
+  /// time to commit the change.  If all retries are exhausted the server
+  /// state is accepted as-is.
   ///
   /// Returns `true` if the fetch succeeded, `false` on error or if no
   /// location is selected.
   Future<bool> refreshCurrentLocation() async {
     final id = _selectedLocationId;
     if (id == null) return false;
-    return _fetchLocation(id, preserveOldData: true);
+
+    // Prune expired expectations before checking
+    _pendingExpectations.removeWhere((_, exp) => exp.isExpired);
+
+    final success = await _fetchLocation(id, preserveOldData: true);
+    if (!success) return false;
+
+    // If there are no pending expectations, we're done
+    if (_pendingExpectations.isEmpty) return true;
+
+    // Check whether the server data matches our expectations.
+    // The initial fetch snapshot is already in _lastServerSnapshot.
+    // If it doesn't match, retry up to _maxReconcileRetries times.
+    for (int attempt = 0; attempt <= _maxReconcileRetries; attempt++) {
+      final mismatches = <int>[];
+
+      for (final entry in _pendingExpectations.entries) {
+        final lightId = entry.key;
+        final expectation = entry.value;
+        if (expectation.isExpired) continue;
+
+        // Compare against the raw server snapshot (before optimistic patches)
+        final serverItem = _lastServerSnapshot[lightId];
+        if (serverItem != null && !expectation.matches(serverItem)) {
+          mismatches.add(lightId);
+        }
+      }
+
+      if (mismatches.isEmpty) {
+        // Server matches — clear expectations and we're done
+        debugPrint(
+          'LocationDataService: Server data matches expectations '
+          '(check #$attempt)',
+        );
+        _pendingExpectations.clear();
+        return true;
+      }
+
+      // If this was the last allowed attempt, don't retry
+      if (attempt == _maxReconcileRetries) break;
+
+      debugPrint(
+        'LocationDataService: Server mismatch for ${mismatches.length} '
+        'light(s) — re-fetching (retry ${attempt + 1}/$_maxReconcileRetries)',
+      );
+
+      // Re-apply optimistic state so the UI doesn't flicker
+      _reapplyExpectations();
+
+      // Wait before retrying
+      await Future.delayed(_reconcileDelay);
+      final retrySuccess = await _fetchLocation(id, preserveOldData: true);
+      if (!retrySuccess) return false;
+    }
+
+    // Exhausted all retries — accept server state, clear expectations
+    debugPrint(
+      'LocationDataService: Exhausted $_maxReconcileRetries retries — '
+      'accepting server state',
+    );
+    _pendingExpectations.clear();
+    return true;
+  }
+
+  /// Re-apply pending optimistic expectations to `_zonesAndLights` so the
+  /// UI doesn't flicker back to stale server state between retries.
+  void _reapplyExpectations() {
+    _reapplyExpectationsQuietly();
+    notifyListeners();
+  }
+
+  /// Same as [_reapplyExpectations] but without calling [notifyListeners].
+  /// Used inside [_fetchLocation] where the `finally` block already notifies.
+  void _reapplyExpectationsQuietly() {
+    for (final entry in _pendingExpectations.entries) {
+      final lightId = entry.key;
+      final expectation = entry.value;
+      if (expectation.isExpired) continue;
+
+      final idx = _zonesAndLights.indexWhere((z) => z.lightId == lightId);
+      if (idx == -1) continue;
+
+      final old = _zonesAndLights[idx];
+      _zonesAndLights[idx] = old.copyWith(
+        lightingStatusId: expectation.expectedStatusId ?? old.lightingStatusId,
+        lightingStatus: expectation.expectedStatusId != null
+            ? (expectation.expectedStatusId == 1 ? 'OFF' : 'SOLID_COLOR')
+            : old.lightingStatus,
+        colorId: expectation.expectedColorId ?? old.colorId,
+      );
+    }
   }
 
   // ─────────────────────── Private Fetch ──────────────────────
@@ -438,6 +599,20 @@ class LocationDataService extends ChangeNotifier {
 
       _parseApiResponse(response);
       await _persistToStorage(response);
+
+      // Snapshot the raw server state for mismatch detection before
+      // re-applying optimistic expectations.
+      _lastServerSnapshot = {
+        for (final item in _zonesAndLights)
+          if (item.lightId != null) item.lightId!: item,
+      };
+
+      // If there are pending optimistic expectations, re-apply them
+      // before notifyListeners fires so the UI never flickers to stale data.
+      if (_pendingExpectations.isNotEmpty) {
+        _reapplyExpectationsQuietly();
+      }
+
       return true;
     } catch (e) {
       debugPrint('LocationDataService: Error fetching location $locationId: $e');
@@ -455,6 +630,8 @@ class LocationDataService extends ChangeNotifier {
     _zonesAndLights = [];
     _controllers = [];
     _effects = [];
+    _pendingExpectations.clear();
+    _lastServerSnapshot.clear();
 
     try {
       await _storage.delete(key: _selectedLocationIdKey);
@@ -507,4 +684,39 @@ class LocationDataService extends ChangeNotifier {
       debugPrint('LocationDataService: Error persisting: $e');
     }
   }
+}
+
+/// Tracks what we expect the server to eventually return for a given light
+/// after an optimistic command.
+class _OptimisticExpectation {
+  /// The `lightingStatusId` we expect (1 = OFF, 3 = SOLID_COLOR, etc.).
+  final int? expectedStatusId;
+
+  /// The `colorId` we expect (null if the command didn't change the color).
+  final int? expectedColorId;
+
+  /// When this expectation was created.
+  final DateTime createdAt;
+
+  _OptimisticExpectation({
+    this.expectedStatusId,
+    this.expectedColorId,
+    required this.createdAt,
+  });
+
+  /// Returns `true` if [item] from the server matches this expectation.
+  bool matches(LightZoneItem item) {
+    if (expectedStatusId != null && item.lightingStatusId != expectedStatusId) {
+      return false;
+    }
+    if (expectedColorId != null && item.colorId != expectedColorId) {
+      return false;
+    }
+    return true;
+  }
+
+  /// Expectations older than this are considered stale and auto-cleared.
+  static const _maxAge = Duration(seconds: 15);
+
+  bool get isExpired => DateTime.now().difference(createdAt) > _maxAge;
 }
