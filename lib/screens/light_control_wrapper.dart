@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import '../widgets/effect_painters.dart';
+import '../widgets/rename_popup.dart';
 import '../core/utils/color_capability.dart';
+import '../core/utils/ui_effects.dart';
 import '../core/services/command_service.dart';
 import '../core/services/location_data_service.dart';
 import 'create_effect_screen.dart';
@@ -64,6 +66,7 @@ class LightControlWrapper extends StatefulWidget {
   final double? initialBrightness;
   final int initialTabIndex;
   final Map<String, dynamic>? initialEffectConfig;
+  final UIEffect? initialApiEffect;
   final String? colorCapability; // "Legacy" or "Extended"
   final String? lightType; // e.g. "TRIM LIGHT", "K SERIES", etc.
 
@@ -87,6 +90,7 @@ class LightControlWrapper extends StatefulWidget {
     this.initialBrightness,
     this.initialTabIndex = 0,
     this.initialEffectConfig,
+    this.initialApiEffect,
     this.colorCapability,
     this.lightType,
     this.capability = const ItemCapability(),
@@ -114,6 +118,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
   // Effect playing state
   Map<String, dynamic>? _playingEffectConfig;
   AnimationController? _effectAnimationController;
+  UIEffect _apiEffect = UIEffect.none;
 
   // Effects tab folder selection state
   String? _effectsSelectedFolder;
@@ -142,6 +147,12 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     _isOn = widget.initialIsOn ?? false;
     _brightness = widget.initialBrightness ?? 100.0;
     _playingEffectConfig = widget.initialEffectConfig;
+    _apiEffect = widget.initialApiEffect ?? UIEffect.none;
+
+    // If there's an API effect, use its primary color instead of orange
+    if (_apiEffect.isValid && _playingEffectConfig == null) {
+      _selectedColor = _apiEffect.primaryColor;
+    }
 
     _sliderFadeController = AnimationController(
       vsync: this,
@@ -161,7 +172,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     );
 
     // If there's an initial effect config, start the animation
-    if (_playingEffectConfig != null) {
+    if (_playingEffectConfig != null || (_apiEffect.isValid && _isOn)) {
       _effectAnimationController?.repeat();
     }
 
@@ -208,6 +219,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
   void _onEffectStarted(Map<String, dynamic> effectConfig) {
     setState(() {
       _playingEffectConfig = effectConfig;
+      _apiEffect = UIEffect.none; // Local effect replaces API effect
       _isOn = true;
     });
     _effectAnimationController?.repeat();
@@ -216,6 +228,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
   void _onEffectStopped() {
     setState(() {
       _playingEffectConfig = null;
+      _apiEffect = UIEffect.none;
       // Default to warm white (2700K) when effect is stopped
       _selectedColor = const Color(0xFFF8E96C);
     });
@@ -262,6 +275,12 @@ class _LightControlWrapperState extends State<LightControlWrapper>
       // Stop any playing effect when a color is selected
       if (_playingEffectConfig != null) {
         _playingEffectConfig = null;
+        _effectAnimationController?.stop();
+        _effectAnimationController?.reset();
+      }
+      // Clear API effect when user picks a solid color
+      if (_apiEffect.isValid) {
+        _apiEffect = UIEffect.none;
         _effectAnimationController?.stop();
         _effectAnimationController?.reset();
       }
@@ -609,13 +628,18 @@ class _LightControlWrapperState extends State<LightControlWrapper>
 
   Widget _buildLightCard() {
     final isPlayingEffect = _playingEffectConfig != null;
+    final isPlayingApiEffect = _apiEffect.isValid && !isPlayingEffect;
     final isWhite = _isWhiteTemperature(_selectedColor);
 
     // Use different calculations for whites vs colors
     final Color cardColor;
     final Color borderColor;
 
-    if (isPlayingEffect) {
+    if (isPlayingApiEffect) {
+      // API effect (cascade from server)
+      borderColor = _apiEffect.primaryColor.withOpacity(_isOn ? 0.7 : 0.35);
+      cardColor = _isOn ? const Color(0xFF000000) : const Color(0xFF1D1D1D);
+    } else if (isPlayingEffect) {
       final effectType = _playingEffectConfig!['effectType'] as String?;
 
       if (effectType == 'wave3') {
@@ -818,6 +842,33 @@ class _LightControlWrapperState extends State<LightControlWrapper>
                       },
                     ),
                   ),
+                // API cascade effect background
+                if (isPlayingApiEffect &&
+                    _isOn &&
+                    _effectAnimationController != null)
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _effectAnimationController!,
+                      builder: (context, child) {
+                        return CustomPaint(
+                          size: const Size(double.infinity, 115),
+                          painter: _apiEffect.painter(
+                            animationValue: _effectAnimationController!.value,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                // Dark overlay for API effects
+                if (isPlayingApiEffect && _isOn)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.35),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                  ),
                 // Content overlay
                 Padding(
                   padding: const EdgeInsets.symmetric(
@@ -903,14 +954,36 @@ class _LightControlWrapperState extends State<LightControlWrapper>
                           ),
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onTap: () {
+                            onTap: () async {
                               HapticFeedback.mediumImpact();
-                              debugPrint('Menu tapped for ${widget.lightName}');
+                              final type = widget.zoneId != null ? 'Zone' : 'Light';
+                              final newName = await showRenamePopup(
+                                context,
+                                itemType: type,
+                                currentName: widget.lightName,
+                              );
+                              if (newName != null) {
+                                final id = widget.lightId ?? widget.zoneId;
+                                if (id != null) {
+                                  debugPrint('Rename ${widget.lightName} → $newName');
+                                  CommandService()
+                                      .renameLightOrZone(
+                                        lightId: id,
+                                        name: newName,
+                                      )
+                                      .catchError((e) {
+                                        debugPrint('Rename failed: $e');
+                                      });
+                                }
+                              }
                             },
-                            child: const Icon(
-                              Icons.more_vert,
-                              color: Colors.white,
-                              size: 32,
+                            child: Padding(
+                              padding: const EdgeInsets.all(4),
+                              child: const Icon(
+                                Icons.more_vert,
+                                color: Colors.white,
+                                size: 32,
+                              ),
                             ),
                           ),
                         ],

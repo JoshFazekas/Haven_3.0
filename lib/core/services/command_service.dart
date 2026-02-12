@@ -411,6 +411,53 @@ class CommandService {
       );
     }
   }
+
+  // ─────────────────── Rename Light / Zone ───────────────────
+
+  /// Renames a light or zone via **PUT** `/api/Light/UpdateName`.
+  ///
+  /// - [lightId] – The target's `lightId` (or zone id).
+  /// - [name]    – The new display name entered by the user.
+  ///
+  /// A 3-character `pinName` is auto-generated from [name].
+  /// After a successful rename the local location data is refreshed.
+  ///
+  /// ```dart
+  /// await CommandService().renameLightOrZone(
+  ///   lightId: 1023,
+  ///   name: 'Front Porch',
+  /// );
+  /// ```
+  Future<void> renameLightOrZone({
+    required int lightId,
+    required String name,
+  }) async {
+    try {
+      final response = await HavenApi().updateLightName(
+        lightId: lightId,
+        name: name,
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint(
+          'CommandService: Rename succeeded — lightId=$lightId, name=$name',
+        );
+        // Refresh location data so the UI picks up the new name
+        LocationDataService().refreshCurrentLocation();
+      } else if (response.statusCode == 401) {
+        throw CommandException('Authentication failed. Please sign in again.');
+      } else {
+        throw CommandException(
+          'Rename failed (${response.statusCode}): ${response.body}',
+        );
+      }
+    } catch (e) {
+      if (e is CommandException) rethrow;
+      throw CommandException(
+        'Failed to rename. Please check your connection and try again.',
+      );
+    }
+  }
 }
 
 class CommandException implements Exception {

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/services/location_data_service.dart';
 import '../core/services/command_service.dart';
+import '../core/utils/ui_effects.dart';
 import '../screens/light_control_wrapper.dart';
 import 'effect_painters.dart';
+import 'rename_popup.dart';
 
 /// A card displaying a single light/zone.
 ///
@@ -38,6 +40,9 @@ class _LightZoneCardState extends State<LightZoneCard>
   Map<String, dynamic>? _playingEffectConfig;
   AnimationController? _effectAnimationController;
 
+  /// Parsed effect from the API's lightingStateName (e.g. cascade).
+  UIEffect _apiEffect = UIEffect.none;
+
   // White temperature color values to detect (must match ColorCapability whites)
   static const Set<int> _whiteTemperatureValues = {
     0xFFF8E96C, // 2700K
@@ -64,6 +69,15 @@ class _LightZoneCardState extends State<LightZoneCard>
       vsync: this,
       duration: const Duration(seconds: 4),
     );
+
+    // Parse any server-side effect that is already playing
+    _apiEffect = UIEffect.parse(
+      lightingStatus: widget.item.lightingStatus,
+      lightingStateName: widget.item.lightingStateName,
+    );
+    if (_apiEffect.isValid && _isOn) {
+      _effectAnimationController?.repeat();
+    }
   }
 
   @override
@@ -76,11 +90,27 @@ class _LightZoneCardState extends State<LightZoneCard>
     if (newItem.colorId != oldItem.colorId ||
         newItem.lightBrightnessId != oldItem.lightBrightnessId ||
         newItem.lightingStateId != oldItem.lightingStateId ||
-        newItem.lightingStatus != oldItem.lightingStatus) {
+        newItem.lightingStatus != oldItem.lightingStatus ||
+        newItem.lightingStateName != oldItem.lightingStateName) {
       setState(() {
         _isOn = newItem.isCurrentlyOn;
         _brightness = newItem.brightnessPercent.toDouble();
         _selectedColor = newItem.initialColor;
+
+        // Re-parse server-side effect
+        _apiEffect = UIEffect.parse(
+          lightingStatus: newItem.lightingStatus,
+          lightingStateName: newItem.lightingStateName,
+        );
+
+        // If the API says there's an effect, start the animation;
+        // if it cleared, stop it (unless a local effect is still active).
+        if (_apiEffect.isValid && _isOn) {
+          _effectAnimationController?.repeat();
+        } else if (_playingEffectConfig == null) {
+          _effectAnimationController?.stop();
+          _effectAnimationController?.reset();
+        }
       });
     }
 
@@ -103,6 +133,16 @@ class _LightZoneCardState extends State<LightZoneCard>
     final newIsOn = !_isOn;
     setState(() {
       _isOn = newIsOn;
+
+      // Start/stop API effect animation on toggle
+      if (_apiEffect.isValid) {
+        if (newIsOn) {
+          _effectAnimationController?.repeat();
+        } else {
+          _effectAnimationController?.stop();
+          _effectAnimationController?.reset();
+        }
+      }
     });
     debugPrint('Toggle tapped for ${widget.item.name}: $_isOn');
 
@@ -140,6 +180,7 @@ class _LightZoneCardState extends State<LightZoneCard>
           initialIsOn: _isOn,
           initialBrightness: _brightness,
           initialEffectConfig: _playingEffectConfig,
+          initialApiEffect: _apiEffect,
           onColorSelected: (Color color, bool isOn, double brightness, Map<String, dynamic>? effectConfig) {
             // Update the UI with the new color, state, brightness, and effect
             setState(() {
@@ -147,6 +188,17 @@ class _LightZoneCardState extends State<LightZoneCard>
               _isOn = isOn;
               _brightness = brightness;
               _playingEffectConfig = effectConfig;
+              
+              // If user set a new local effect or picked a solid color,
+              // clear the API effect so we don't double-render.
+              // (A new local effect replaces the server one; a solid color
+              // means the user moved away from the effect entirely.)
+              if (effectConfig != null) {
+                _apiEffect = UIEffect.none;
+              } else if (_apiEffect.isValid && color != _apiEffect.primaryColor) {
+                // User picked a different solid color — no longer on the API effect
+                _apiEffect = UIEffect.none;
+              }
               
               // Start or stop animation based on effect config
               if (effectConfig != null) {
@@ -168,13 +220,22 @@ class _LightZoneCardState extends State<LightZoneCard>
   @override
   Widget build(BuildContext context) {
     final isPlayingEffect = _playingEffectConfig != null;
+    final isPlayingApiEffect = _apiEffect.isValid && _playingEffectConfig == null;
     final isWhite = _isWhiteTemperature(_selectedColor);
 
     // Use different calculations for whites vs colors (matching LightControlWrapper)
     final Color cardColor;
     final Color borderColor;
 
-    if (isPlayingEffect) {
+    if (isPlayingApiEffect) {
+      // API-driven effect (e.g. cascade)
+      // When ON: vibrant border from effect's primary color
+      // When OFF: dimmed border so user can still see what effect is loaded
+      borderColor = _isOn
+          ? _apiEffect.primaryColor.withOpacity(0.7)
+          : _apiEffect.primaryColor.withOpacity(0.35);
+      cardColor = _isOn ? const Color(0xFF000000) : const Color(0xFF1D1D1D);
+    } else if (isPlayingEffect) {
       final effectType = _playingEffectConfig!['effectType'] as String?;
       
       if (effectType == 'wave3') {
@@ -370,6 +431,32 @@ class _LightZoneCardState extends State<LightZoneCard>
                         },
                       ),
                     ),
+                  // API-driven effect background (e.g. cascade from server)
+                  if (isPlayingApiEffect &&
+                      _isOn &&
+                      _effectAnimationController != null)
+                    Positioned.fill(
+                      child: AnimatedBuilder(
+                        animation: _effectAnimationController!,
+                        builder: (context, child) {
+                          final painter = _apiEffect.painter(
+                            animationValue: _effectAnimationController!.value,
+                          );
+                          if (painter == null) return const SizedBox.shrink();
+                          return CustomPaint(
+                            size: const Size(double.infinity, 88),
+                            painter: painter,
+                          );
+                        },
+                      ),
+                    ),
+                  // Subtle dark overlay to tone down effect brightness on card
+                  if (isPlayingApiEffect && _isOn)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black.withOpacity(0.35),
+                      ),
+                    ),
                   // Content overlay
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -421,7 +508,7 @@ class _LightZoneCardState extends State<LightZoneCard>
                                 onChanged: (_) => _onToggleTap(),
                                 activeColor: Colors.white,
                                 activeTrackColor: _isOn
-                                    ? (isPlayingEffect
+                                    ? ((isPlayingEffect || isPlayingApiEffect)
                                           ? Colors.white.withOpacity(0.3)
                                           : (isWhite
                                                 ? Color.lerp(
@@ -445,14 +532,33 @@ class _LightZoneCardState extends State<LightZoneCard>
                             // 3-dot menu bottom right
                             GestureDetector(
                               behavior: HitTestBehavior.opaque,
-                              onTap: () {
+                              onTap: () async {
                                 HapticFeedback.mediumImpact();
-                                debugPrint('Menu tapped for ${widget.item.name}');
+                                final type = widget.item.isLight ? 'Light' : 'Zone';
+                                final newName = await showRenamePopup(
+                                  context,
+                                  itemType: type,
+                                  currentName: widget.item.name,
+                                );
+                                if (newName != null && widget.item.lightId != null) {
+                                  debugPrint('Rename ${widget.item.name} → $newName');
+                                  CommandService()
+                                      .renameLightOrZone(
+                                        lightId: widget.item.lightId!,
+                                        name: newName,
+                                      )
+                                      .catchError((e) {
+                                        debugPrint('Rename failed: $e');
+                                      });
+                                }
                               },
-                              child: const Icon(
-                                Icons.more_vert,
-                                color: Colors.white,
-                                size: 32,
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: const Icon(
+                                  Icons.more_vert,
+                                  color: Colors.white,
+                                  size: 32,
+                                ),
                               ),
                             ),
                           ],

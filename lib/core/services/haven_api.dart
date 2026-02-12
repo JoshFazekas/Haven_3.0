@@ -291,6 +291,38 @@ class HavenApi {
     );
   }
 
+  // ─────────────────── Light / Zone Rename ───────────────────
+
+  /// **PUT** `/api/Light/UpdateName`
+  ///
+  /// Renames a light or zone.
+  ///
+  /// - [lightId] – The target's `lightId` (or zone id).
+  /// - [name]    – The new display name.
+  /// - `pinName` is auto-generated as the first 3 characters of [name].
+  Future<http.Response> updateLightName({
+    required int lightId,
+    required String name,
+  }) async {
+    const path = '/api/Light/UpdateName';
+    final url = '$baseUrl$path';
+
+    // Abbreviated 3-char pin derived from the user-entered name
+    final pinName = name.length >= 3 ? name.substring(0, 3) : name;
+
+    final body = {'lightId': lightId, 'name': name, 'pinName': pinName};
+
+    return _putRaw(
+      url,
+      headers: {
+        ..._authHeaders(),
+        'Content-Type': 'application/json-patch+json',
+      },
+      body: body,
+      label: 'UpdateName',
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════
   //  5.  DEVICE  —  /api/Device
   // ═══════════════════════════════════════════════════════════
@@ -556,6 +588,68 @@ class HavenApi {
       return response;
     } catch (e) {
       _logger.logError(method: 'POST', endpoint: url, error: e);
+      throw HavenApiException(
+        '$label failed. Please check your connection and try again.',
+      );
+    }
+  }
+
+  /// Sends a PUT and returns the **raw [http.Response]** so the caller
+  /// can inspect status codes directly.
+  ///
+  /// If the server responds with **401** and a refresh token is available
+  /// the method will attempt a single token refresh and retry the request.
+  Future<http.Response> _putRaw(
+    String url, {
+    required Map<String, String> headers,
+    required Map<String, dynamic> body,
+    required String label,
+  }) async {
+    _logger.logRequest(
+      method: 'PUT',
+      endpoint: url,
+      headers: headers,
+      body: body,
+    );
+
+    try {
+      var response = await http.put(
+        Uri.parse(url),
+        headers: headers,
+        body: jsonEncode(body),
+      );
+
+      _logger.logResponse(
+        method: 'PUT',
+        endpoint: url,
+        statusCode: response.statusCode,
+        body: response.body,
+      );
+
+      // ── 401 → try token refresh then retry once ──
+      if (response.statusCode == 401) {
+        final refreshed = await _tryRefreshToken();
+        if (refreshed) {
+          debugPrint('HavenApi: Retrying $label after token refresh');
+          final retryHeaders = _refreshAuthHeader(headers);
+          response = await http.put(
+            Uri.parse(url),
+            headers: retryHeaders,
+            body: jsonEncode(body),
+          );
+
+          _logger.logResponse(
+            method: 'PUT (retry)',
+            endpoint: url,
+            statusCode: response.statusCode,
+            body: response.body,
+          );
+        }
+      }
+
+      return response;
+    } catch (e) {
+      _logger.logError(method: 'PUT', endpoint: url, error: e);
       throw HavenApiException(
         '$label failed. Please check your connection and try again.',
       );
