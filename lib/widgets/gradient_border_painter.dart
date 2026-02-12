@@ -22,9 +22,9 @@ class AllLightsZonesStyle {
       EdgeInsets.symmetric(horizontal: 10);
 
   // ── Gradient border ──
-  static const double gradientBorderWidth = 1.5;
-  static const double gradientBorderOpacity = 0.5;
-  static const double gradientBorderDarken = 0.65; // 0 = black, 1 = full color
+  static const double gradientBorderWidth = 2.5;
+  static const double gradientBorderOpacity = 0.55;
+  static const double gradientBorderDarken = 0.75; // 0 = black, 1 = full color
   static const Duration gradientSpinDuration = Duration(seconds: 4);
 
   // ── Title ──

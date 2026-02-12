@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'gradient_border_painter.dart';
+import 'package:haven/core/services/location_data_service.dart';
 
 /// Represents a device/controller returned from the API
 class DeviceController {
@@ -47,7 +48,12 @@ class DeviceControlCard extends StatefulWidget {
   final VoidCallback? onAllLightsOn;
   final VoidCallback? onAllLightsOff;
   final VoidCallback? onImageViewTap;
+  final VoidCallback? onColorPaletteTap;
+  final VoidCallback? onBrightnessTap;
   final bool isImageViewActive;
+
+  /// Location-level capability — drives which icons are visible.
+  final ItemCapability capability;
 
   /// Current state colors from each light/zone card.
   /// Used to paint a gradient border that reflects each light's color.
@@ -59,7 +65,10 @@ class DeviceControlCard extends StatefulWidget {
     this.onAllLightsOn,
     this.onAllLightsOff,
     this.onImageViewTap,
+    this.onColorPaletteTap,
+    this.onBrightnessTap,
     this.isImageViewActive = false,
+    this.capability = const ItemCapability(),
     this.lightColors = const [],
   });
 
@@ -115,7 +124,9 @@ class _DeviceControlCardState extends State<DeviceControlCard>
       width: double.infinity,
       height: AllLightsZonesStyle.cardHeight,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AllLightsZonesStyle.cardBorderRadius),
+        borderRadius: BorderRadius.circular(
+          AllLightsZonesStyle.cardBorderRadius,
+        ),
         color: AllLightsZonesStyle.cardBackgroundColor,
       ),
       padding: AllLightsZonesStyle.cardPadding,
@@ -133,15 +144,9 @@ class _DeviceControlCardState extends State<DeviceControlCard>
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(
-                    flex: 1,
-                    child: _buildButton('OFF', isOn: false),
-                  ),
+                  Expanded(flex: 1, child: _buildButton('OFF', isOn: false)),
                   const SizedBox(width: 12),
-                  Expanded(
-                    flex: 1,
-                    child: _buildButton('ON', isOn: true),
-                  ),
+                  Expanded(flex: 1, child: _buildButton('ON', isOn: true)),
                   const Spacer(flex: 2),
                 ],
               ),
@@ -155,26 +160,49 @@ class _DeviceControlCardState extends State<DeviceControlCard>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildImageIconButton(
-                  imagePath: 'assets/images/colors.png',
-                  backgroundColor: AllLightsZonesStyle.colorPaletteBackground,
-                  borderColor: AllLightsZonesStyle.colorPaletteBorder,
-                  onTap: () {
-                    HapticFeedback.mediumImpact();
-                    debugPrint('Color palette tapped');
-                  },
-                ),
-                const SizedBox(width: 8),
-                _buildIconButton(
-                  icon: Icons.wb_sunny_outlined,
-                  backgroundColor: AllLightsZonesStyle.brightnessBackground,
-                  borderColor: AllLightsZonesStyle.brightnessBorder,
-                  onTap: () {
-                    HapticFeedback.mediumImpact();
-                    debugPrint('Brightness tapped');
-                  },
-                ),
-                const SizedBox(width: 8),
+                // Color palette icon — driven by capability:
+                //  • hasColorCapability → multi-color icon (colors.png)
+                //  • whiteCapability only → white palette icon (whitesicon.png)
+                //  • neither → hidden
+                if (widget.capability.hasColorCapability)
+                  _buildImageIconButton(
+                    imagePath: 'assets/images/colors.png',
+                    backgroundColor: AllLightsZonesStyle.colorPaletteBackground,
+                    borderColor: AllLightsZonesStyle.colorPaletteBorder,
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      widget.onColorPaletteTap?.call();
+                      debugPrint('Color palette tapped');
+                    },
+                  )
+                else if (widget.capability.whiteCapability)
+                  _buildImageIconButton(
+                    imagePath: 'assets/images/whitesicon.png',
+                    backgroundColor: AllLightsZonesStyle.colorPaletteBackground,
+                    borderColor: AllLightsZonesStyle.colorPaletteBorder,
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      widget.onColorPaletteTap?.call();
+                      debugPrint('White palette tapped');
+                    },
+                  ),
+                if (widget.capability.hasColorCapability ||
+                    widget.capability.whiteCapability)
+                  const SizedBox(width: 8),
+                // Brightness icon — shown only when brightnessCapability == true
+                if (widget.capability.brightnessCapability) ...[
+                  _buildIconButton(
+                    icon: Icons.wb_sunny_outlined,
+                    backgroundColor: AllLightsZonesStyle.brightnessBackground,
+                    borderColor: AllLightsZonesStyle.brightnessBorder,
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      widget.onBrightnessTap?.call();
+                      debugPrint('Brightness tapped');
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 _buildImageIconButton(
                   imagePath: 'assets/images/imageview.png',
                   backgroundColor: widget.isImageViewActive
@@ -210,8 +238,13 @@ class _DeviceControlCardState extends State<DeviceControlCard>
         padding: AllLightsZonesStyle.buttonPadding,
         decoration: BoxDecoration(
           color: AllLightsZonesStyle.buttonBackgroundColor,
-          borderRadius: BorderRadius.circular(AllLightsZonesStyle.buttonBorderRadius),
-          border: Border.all(color: AllLightsZonesStyle.buttonBorderColor, width: 1),
+          borderRadius: BorderRadius.circular(
+            AllLightsZonesStyle.buttonBorderRadius,
+          ),
+          border: Border.all(
+            color: AllLightsZonesStyle.buttonBorderColor,
+            width: 1,
+          ),
         ),
         child: Text(
           label,
@@ -234,9 +267,15 @@ class _DeviceControlCardState extends State<DeviceControlCard>
         padding: const EdgeInsets.all(AllLightsZonesStyle.iconButtonPadding),
         decoration: BoxDecoration(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(AllLightsZonesStyle.iconButtonRadius),
+          borderRadius: BorderRadius.circular(
+            AllLightsZonesStyle.iconButtonRadius,
+          ),
         ),
-        child: Icon(icon, color: Colors.white, size: AllLightsZonesStyle.iconSize),
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: AllLightsZonesStyle.iconSize,
+        ),
       ),
     );
   }
@@ -253,9 +292,15 @@ class _DeviceControlCardState extends State<DeviceControlCard>
         padding: const EdgeInsets.all(AllLightsZonesStyle.iconButtonPadding),
         decoration: BoxDecoration(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(AllLightsZonesStyle.iconButtonRadius),
+          borderRadius: BorderRadius.circular(
+            AllLightsZonesStyle.iconButtonRadius,
+          ),
         ),
-        child: Image.asset(imagePath, width: AllLightsZonesStyle.iconSize, height: AllLightsZonesStyle.iconSize),
+        child: Image.asset(
+          imagePath,
+          width: AllLightsZonesStyle.iconSize,
+          height: AllLightsZonesStyle.iconSize,
+        ),
       ),
     );
   }

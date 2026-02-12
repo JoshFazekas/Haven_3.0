@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/services/location_data_service.dart';
+import '../core/services/command_service.dart';
 import '../screens/light_control_wrapper.dart';
 import 'effect_painters.dart';
 
@@ -74,7 +75,7 @@ class _LightZoneCardState extends State<LightZoneCard>
     final oldItem = oldWidget.item;
     if (newItem.colorId != oldItem.colorId ||
         newItem.lightBrightnessId != oldItem.lightBrightnessId ||
-        newItem.lightingStatusId != oldItem.lightingStatusId ||
+        newItem.lightingStateId != oldItem.lightingStateId ||
         newItem.lightingStatus != oldItem.lightingStatus) {
       setState(() {
         _isOn = newItem.isCurrentlyOn;
@@ -99,10 +100,25 @@ class _LightZoneCardState extends State<LightZoneCard>
 
   void _onToggleTap() {
     HapticFeedback.mediumImpact();
+    final newIsOn = !_isOn;
     setState(() {
-      _isOn = !_isOn;
+      _isOn = newIsOn;
     });
     debugPrint('Toggle tapped for ${widget.item.name}: $_isOn');
+
+    // Fire the On/Off API command
+    final id = widget.item.lightId;
+    final type = widget.item.isLight ? 'Light' : 'Zone';
+
+    if (id != null) {
+      final command = newIsOn
+          ? CommandService().turnOn(id: id, type: type)
+          : CommandService().turnOff(id: id, type: type);
+
+      command.catchError((e) {
+        debugPrint('Toggle command failed: $e');
+      });
+    }
   }
 
   void _openColorPalette() {
@@ -113,11 +129,12 @@ class _LightZoneCardState extends State<LightZoneCard>
         builder: (context) => LightControlWrapper(
           lightName: widget.item.name,
           controllerTypeName: widget.item.displayType,
-          lightId: null,
+          lightId: widget.item.lightId,
           zoneId: null,
           locationId: widget.locationId,
           colorCapability: widget.item.colorCapability,
           lightType: widget.item.type,
+          capability: widget.item.capability,
           initialTabIndex: 0,
           initialColor: _selectedColor,
           initialIsOn: _isOn,
