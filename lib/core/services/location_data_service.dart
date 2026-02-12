@@ -47,6 +47,12 @@ class ItemCapability {
     'lightShowCapability': lightShowCapability,
     'effectCapability': effectCapability,
   };
+
+  /// `true` when the target supports at least one color palette
+  /// ("Legacy" = 20 colors, "Extended" = 32 colors).
+  bool get hasColorCapability =>
+      colorCapability.isNotEmpty &&
+      colorCapability.toUpperCase() != 'NONE';
 }
 
 /// Represents a single light from the API response.

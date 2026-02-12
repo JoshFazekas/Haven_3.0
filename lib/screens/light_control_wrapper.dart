@@ -1293,8 +1293,9 @@ class ColorsTabContent extends StatelessWidget {
             onTap: () {
               HapticFeedback.mediumImpact();
               onColorChanged(color, colorId: entryColorId);
+              // SetColor alone turns the light on — just update UI state,
+              // no extra toggle/brightness commands needed.
               if (!isOn) {
-                onBrightnessChanged(100.0);
                 onIsOnChanged(true);
               }
               debugPrint('Color selected: $colorName - $color');
@@ -1393,8 +1394,9 @@ class WhitesTabContent extends StatelessWidget {
             onTap: () {
               HapticFeedback.mediumImpact();
               onColorChanged(color, colorId: entryColorId);
+              // SetColor alone turns the light on — just update UI state,
+              // no extra toggle/brightness commands needed.
               if (!isOn) {
-                onBrightnessChanged(100.0);
                 onIsOnChanged(true);
               }
               debugPrint('White temperature selected: $tempName - $color');

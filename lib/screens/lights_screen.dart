@@ -772,6 +772,7 @@ class _LightsScreenState extends State<LightsScreen>
                 devices: _devices,
                 isImageViewActive: _isImageViewActive,
                 lightColors: _getLightStateColors(),
+                capability: _locationDataService.locationCapability,
                 onImageViewTap: () {
                   setState(() {
                     _isImageViewActive = !_isImageViewActive;
@@ -936,12 +937,13 @@ class _LightsScreenState extends State<LightsScreen>
 
   /// Opens the [LightControlWrapper] in "All Lights / Zones" mode.
   ///
-  /// The color palette shows the **best** capability across the entire
-  /// location (Extended if any light supports it, otherwise Legacy) and
-  /// all available tabs (including Effects & Music if any X Series light
-  /// is present).  Commands target the whole location.
+  /// Uses the **location-level** capability from the API response
+  /// (`location.capability`) to determine which tabs to show.
+  /// This is the top-level capability object that defines the rules
+  /// for the entire location. Commands target the whole location.
   void _openAllLightsColorPalette() {
     final service = _locationDataService;
+    final locCap = service.locationCapability;
     // Determine whether any light is currently on
     final items = [...service.zones, ...service.visibleLights];
     final anyOn = items.any((item) => item.isCurrentlyOn);
@@ -953,9 +955,9 @@ class _LightsScreenState extends State<LightsScreen>
           lightName: 'ALL LIGHTS / ZONES',
           controllerTypeName: '',
           locationId: service.selectedLocationId,
-          colorCapability: service.bestColorCapability,
+          colorCapability: locCap.colorCapability,
           lightType: service.bestLightType,
-          capability: service.bestCapability,
+          capability: locCap,
           isAllLightsMode: true,
           initialTabIndex: 0,
           initialColor: items.isNotEmpty ? items.first.initialColor : null,

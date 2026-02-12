@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'gradient_border_painter.dart';
+import 'package:haven/core/services/location_data_service.dart';
 
 /// Represents a device/controller returned from the API
 class DeviceController {
@@ -51,6 +52,9 @@ class DeviceControlCard extends StatefulWidget {
   final VoidCallback? onBrightnessTap;
   final bool isImageViewActive;
 
+  /// Location-level capability — drives which icons are visible.
+  final ItemCapability capability;
+
   /// Current state colors from each light/zone card.
   /// Used to paint a gradient border that reflects each light's color.
   final List<Color> lightColors;
@@ -64,6 +68,7 @@ class DeviceControlCard extends StatefulWidget {
     this.onColorPaletteTap,
     this.onBrightnessTap,
     this.isImageViewActive = false,
+    this.capability = const ItemCapability(),
     this.lightColors = const [],
   });
 
@@ -155,28 +160,49 @@ class _DeviceControlCardState extends State<DeviceControlCard>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildImageIconButton(
-                  imagePath: 'assets/images/colors.png',
-                  backgroundColor: AllLightsZonesStyle.colorPaletteBackground,
-                  borderColor: AllLightsZonesStyle.colorPaletteBorder,
-                  onTap: () {
-                    HapticFeedback.mediumImpact();
-                    widget.onColorPaletteTap?.call();
-                    debugPrint('Color palette tapped');
-                  },
-                ),
-                const SizedBox(width: 8),
-                _buildIconButton(
-                  icon: Icons.wb_sunny_outlined,
-                  backgroundColor: AllLightsZonesStyle.brightnessBackground,
-                  borderColor: AllLightsZonesStyle.brightnessBorder,
-                  onTap: () {
-                    HapticFeedback.mediumImpact();
-                    widget.onBrightnessTap?.call();
-                    debugPrint('Brightness tapped');
-                  },
-                ),
-                const SizedBox(width: 8),
+                // Color palette icon — driven by capability:
+                //  • hasColorCapability → multi-color icon (colors.png)
+                //  • whiteCapability only → white palette icon (whitesicon.png)
+                //  • neither → hidden
+                if (widget.capability.hasColorCapability)
+                  _buildImageIconButton(
+                    imagePath: 'assets/images/colors.png',
+                    backgroundColor: AllLightsZonesStyle.colorPaletteBackground,
+                    borderColor: AllLightsZonesStyle.colorPaletteBorder,
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      widget.onColorPaletteTap?.call();
+                      debugPrint('Color palette tapped');
+                    },
+                  )
+                else if (widget.capability.whiteCapability)
+                  _buildImageIconButton(
+                    imagePath: 'assets/images/whitesicon.png',
+                    backgroundColor: AllLightsZonesStyle.colorPaletteBackground,
+                    borderColor: AllLightsZonesStyle.colorPaletteBorder,
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      widget.onColorPaletteTap?.call();
+                      debugPrint('White palette tapped');
+                    },
+                  ),
+                if (widget.capability.hasColorCapability ||
+                    widget.capability.whiteCapability)
+                  const SizedBox(width: 8),
+                // Brightness icon — shown only when brightnessCapability == true
+                if (widget.capability.brightnessCapability) ...[
+                  _buildIconButton(
+                    icon: Icons.wb_sunny_outlined,
+                    backgroundColor: AllLightsZonesStyle.brightnessBackground,
+                    borderColor: AllLightsZonesStyle.brightnessBorder,
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      widget.onBrightnessTap?.call();
+                      debugPrint('Brightness tapped');
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 _buildImageIconButton(
                   imagePath: 'assets/images/imageview.png',
                   backgroundColor: widget.isImageViewActive
