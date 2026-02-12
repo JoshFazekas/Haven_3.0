@@ -60,8 +60,9 @@ class _LightsScreenState extends State<LightsScreen>
   // Devices list parsed from API response
   List<DeviceController> _devices = [];
 
-  // Selected location state
-  String _selectedLocation = 'Home';
+  // Selected location state — initialised from the service's cached name
+  // so the header shows the real location name instead of "Home".
+  late String _selectedLocation;
 
   // Global lights on/off state (null = no forced state, true = all on, false = all off)
   bool? _forceAllLightsState;
@@ -76,6 +77,11 @@ class _LightsScreenState extends State<LightsScreen>
   @override
   void initState() {
     super.initState();
+
+    // Use the location name from the service (populated at login or from
+    // cache). Falls back to 'Home' if the name hasn't been fetched yet.
+    _selectedLocation = _locationDataService.locationName ?? 'Home';
+
     _pullController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -113,6 +119,13 @@ class _LightsScreenState extends State<LightsScreen>
   /// Called whenever LocationDataService notifies listeners (new data loaded).
   void _onLocationDataChanged() {
     if (mounted) {
+      // Keep the header in sync with the latest location name.
+      final name = _locationDataService.locationName;
+      if (name != null && name != _selectedLocation) {
+        setState(() {
+          _selectedLocation = name;
+        });
+      }
       _populateDevicesFromLocationData();
     }
   }
@@ -942,6 +955,7 @@ class _LightsScreenState extends State<LightsScreen>
           locationId: service.selectedLocationId,
           colorCapability: service.bestColorCapability,
           lightType: service.bestLightType,
+          capability: service.bestCapability,
           isAllLightsMode: true,
           initialTabIndex: 0,
           initialColor: items.isNotEmpty ? items.first.initialColor : null,
@@ -1000,7 +1014,7 @@ class _LightsScreenState extends State<LightsScreen>
     for (final item in items) {
       cards.add(
         Padding(
-          key: ValueKey('${item.itemType}_${item.zoneNumber}_${item.name}'),
+          key: ValueKey('${item.itemType}_${item.lightId}_${item.name}'),
           padding: const EdgeInsets.only(bottom: 8),
           child: LightZoneCard(
             item: item,

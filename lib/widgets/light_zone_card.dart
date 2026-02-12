@@ -75,7 +75,7 @@ class _LightZoneCardState extends State<LightZoneCard>
     final oldItem = oldWidget.item;
     if (newItem.colorId != oldItem.colorId ||
         newItem.lightBrightnessId != oldItem.lightBrightnessId ||
-        newItem.lightingStatusId != oldItem.lightingStatusId ||
+        newItem.lightingStateId != oldItem.lightingStateId ||
         newItem.lightingStatus != oldItem.lightingStatus) {
       setState(() {
         _isOn = newItem.isCurrentlyOn;
@@ -134,6 +134,7 @@ class _LightZoneCardState extends State<LightZoneCard>
           locationId: widget.locationId,
           colorCapability: widget.item.colorCapability,
           lightType: widget.item.type,
+          capability: widget.item.capability,
           initialTabIndex: 0,
           initialColor: _selectedColor,
           initialIsOn: _isOn,

@@ -24,18 +24,21 @@ enum _TabDefinition {
 
 /// Determines which tabs to show based on capability and light type.
 ///
-/// • Every light gets Colors + Whites (palette varies by capability).
-/// • X Series ("TRIM LIGHT") also gets Effects + Music.
+/// Builds tabs based on the target's [ItemCapability].
+///
+/// • **Colors** — always shown (palette varies by `colorCapability`).
+/// • **Whites** — shown when `whiteCapability == true`.
+/// • **Effects** — shown when `effectCapability == true`.
+/// • **Music** — shown when `effectCapability == true`.
 List<_TabDefinition> _buildAvailableTabs({
-  required String? colorCapability,
-  required String? lightType,
+  required ItemCapability capability,
 }) {
-  final tabs = <_TabDefinition>[_TabDefinition.colors, _TabDefinition.whites];
+  final tabs = <_TabDefinition>[_TabDefinition.colors];
 
-  // X Series lights (TRIM LIGHT) get Effects + Music
-  final isXSeries =
-      lightType != null && lightType.toUpperCase() == 'TRIM LIGHT';
-  if (isXSeries) {
+  if (capability.whiteCapability) {
+    tabs.add(_TabDefinition.whites);
+  }
+  if (capability.effectCapability) {
     tabs.add(_TabDefinition.effects);
     tabs.add(_TabDefinition.music);
   }
@@ -64,6 +67,9 @@ class LightControlWrapper extends StatefulWidget {
   final String? colorCapability; // "Legacy" or "Extended"
   final String? lightType; // e.g. "TRIM LIGHT", "K SERIES", etc.
 
+  /// Full capability object for this target. Drives which tabs are shown.
+  final ItemCapability capability;
+
   /// When `true`, commands target the entire location rather than
   /// a single light/zone.  The card displays "ALL LIGHTS / ZONES".
   final bool isAllLightsMode;
@@ -83,6 +89,7 @@ class LightControlWrapper extends StatefulWidget {
     this.initialEffectConfig,
     this.colorCapability,
     this.lightType,
+    this.capability = const ItemCapability(),
     this.isAllLightsMode = false,
   });
 
@@ -128,8 +135,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
   void initState() {
     super.initState();
     _tabs = _buildAvailableTabs(
-      colorCapability: widget.colorCapability,
-      lightType: widget.lightType,
+      capability: widget.capability,
     );
     _selectedTabIndex = widget.initialTabIndex.clamp(0, _tabs.length - 1);
     _selectedColor = widget.initialColor ?? Colors.orange;

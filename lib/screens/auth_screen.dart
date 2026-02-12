@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:haven/core/services/auth_service.dart';
+import 'package:haven/core/services/haven_api.dart';
+import 'package:haven/core/services/auth_service.dart'; // AuthException typedef
 import 'package:haven/core/services/auth_state.dart';
 import 'package:haven/core/services/location_data_service.dart';
 import 'package:haven/screens/lights_screen.dart';
@@ -22,7 +23,7 @@ class _SignInScreenState extends State<SignInScreen>
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthService();
+  final _api = HavenApi();
   bool _obscurePassword = true;
   bool _isLoading = false;
   bool _isForgotPassword = false;
@@ -330,9 +331,9 @@ class _SignInScreenState extends State<SignInScreen>
     });
 
     try {
-      final result = await _authService.authenticate(
-        email,
-        password,
+      final result = await _api.authenticate(
+        email: email,
+        password: password,
       );
 
       final token = result['token'] as String;
@@ -354,8 +355,8 @@ class _SignInScreenState extends State<SignInScreen>
 
       // Step 2: Fetch user info from /api/User/Info
       try {
-        final userInfoResponse = await _authService.getUserInfo(
-          bearerToken: token,
+        final userInfoResponse = await _api.getUserInfo(
+          token: token,
           email: email,
         );
 
@@ -378,8 +379,8 @@ class _SignInScreenState extends State<SignInScreen>
         // Step 3: Fetch location lights/zones using the default location ID
         if (defaultLocationId > 0) {
           try {
-            final locationData = await _authService.getLocationLightsZones(
-              bearerToken: token,
+            final locationData = await _api.getLocationLightsZones(
+              token: token,
               locationId: defaultLocationId,
             );
             // Store raw response in AuthState for backwards compatibility
@@ -398,7 +399,13 @@ class _SignInScreenState extends State<SignInScreen>
 
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const LightsScreen()),
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => const LightsScreen(),
+            transitionDuration: const Duration(milliseconds: 600),
+            transitionsBuilder: (_, animation, __, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
           (route) => false,
         );
       }
