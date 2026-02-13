@@ -1,7 +1,7 @@
-#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
 
-// HavenApp-DEV Debug Configuration
+// HavenApp-DEV Release Configuration
 FLUTTER_TARGET=lib/main.dart
 PRODUCT_BUNDLE_IDENTIFIER=com.haven.app3
 PRODUCT_NAME=Haven DEV

@@ -458,6 +458,56 @@ class CommandService {
       );
     }
   }
+
+  // ─────────────────────── Execute Effect ───────────────────
+
+  /// Sends the **Execute Effect** command.
+  ///
+  /// Parameters:
+  /// - [id]         – The target ID (lightId, zoneId, locationId, or groupId).
+  /// - [type]       – `"Light"`, `"Zone"`, `"Location"`, or `"Group"`.
+  /// - [effectId]   – The effect's ID from the API.
+  /// - [brightness] – Brightness level (1–10). Defaults to 10.
+  ///
+  /// ```dart
+  /// await CommandService().executeEffect(
+  ///   id: 77,
+  ///   type: 'Location',
+  ///   effectId: 92,
+  /// );
+  /// ```
+  Future<void> executeEffect({
+    required int id,
+    required String type,
+    required int effectId,
+    int brightness = 10,
+  }) async {
+    try {
+      final response = await HavenApi().executeEffect(
+        id: id,
+        type: type,
+        effectId: effectId,
+        brightness: brightness,
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint(
+          'CommandService: ExecuteEffect succeeded — id=$id, type=$type, effectId=$effectId',
+        );
+      } else if (response.statusCode == 401) {
+        throw CommandException('Authentication failed. Please sign in again.');
+      } else {
+        throw CommandException(
+          'ExecuteEffect failed (${response.statusCode}): ${response.body}',
+        );
+      }
+    } catch (e) {
+      if (e is CommandException) rethrow;
+      throw CommandException(
+        'Failed to execute effect. Please check your connection and try again.',
+      );
+    }
+  }
 }
 
 class CommandException implements Exception {

@@ -781,8 +781,9 @@ class _LightsScreenState extends State<LightsScreen>
                 onColorPaletteTap: () {
                   _openAllLightsColorPalette();
                 },
-                onBrightnessTap: () {
-                  _openAllLightsBrightnessPopup();
+                onQuickEditTap: () {
+                  // TODO: Enter Quick Edit Mode
+                  debugPrint('Quick Edit Mode tapped');
                 },
                 onAllLightsOn: () {
                   setState(() {

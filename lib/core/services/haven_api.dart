@@ -380,6 +380,108 @@ class HavenApi {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════
+  //  5b.  EFFECTS  —  /api/Effect
+  // ═══════════════════════════════════════════════════════════
+
+  /// **GET** `/api/Effect/ByLocation/{locationId}`
+  ///
+  /// Fetches all user-created effects for a location.
+  /// Returns a list of effect objects with id, name, effectType,
+  /// configuration, etc.
+  Future<List<Map<String, dynamic>>> getEffectsByLocation({
+    required int locationId,
+  }) async {
+    final path = '/api/Effect/ByLocation/$locationId';
+    final url = '$baseUrl$path';
+    final headers = _authHeaders();
+
+    _logger.logRequest(
+      method: 'GET',
+      endpoint: url,
+      headers: headers,
+    );
+
+    try {
+      var response = await http.get(Uri.parse(url), headers: headers);
+
+      _logger.logResponse(
+        method: 'GET',
+        endpoint: url,
+        statusCode: response.statusCode,
+        body: response.body,
+      );
+
+      // ── 401 → try token refresh then retry once ──
+      if (response.statusCode == 401) {
+        final refreshed = await _tryRefreshToken();
+        if (refreshed) {
+          debugPrint('HavenApi: Retrying getEffectsByLocation after token refresh');
+          final retryHeaders = _refreshAuthHeader(headers);
+          response = await http.get(Uri.parse(url), headers: retryHeaders);
+
+          _logger.logResponse(
+            method: 'GET (retry)',
+            endpoint: url,
+            statusCode: response.statusCode,
+            body: response.body,
+          );
+        }
+      }
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return decoded.cast<Map<String, dynamic>>();
+        }
+        return [];
+      } else if (response.statusCode == 401) {
+        throw HavenApiException('Authentication failed. Please sign in again.');
+      } else {
+        throw HavenApiException(
+          'getEffectsByLocation failed (${response.statusCode}): ${response.body}',
+        );
+      }
+    } catch (e) {
+      if (e is HavenApiException) rethrow;
+      _logger.logError(method: 'GET', endpoint: url, error: e);
+      throw HavenApiException(
+        'getEffectsByLocation failed. Please check your connection and try again.',
+      );
+    }
+  }
+
+  /// **POST** `/api/Commands/Effects/Execute`
+  ///
+  /// Executes (plays) an effect on a target.
+  ///
+  /// - [id]         – The target ID (lightId, zoneId, locationId, or groupId).
+  /// - [type]       – `"Light"`, `"Zone"`, `"Location"`, or `"Group"`.
+  /// - [effectId]   – The effect's ID from the API.
+  /// - [brightness] – Brightness level (1–10). Defaults to 10.
+  Future<http.Response> executeEffect({
+    required int id,
+    required String type,
+    required int effectId,
+    int brightness = 10,
+  }) async {
+    const path = '/api/Commands/Effects/Execute';
+    final url = '$baseUrl$path';
+    final body = {
+      'id': id,
+      'type': type,
+      'effectId': effectId,
+      'brightness': brightness,
+    };
+
+    return _postRaw(
+      url,
+      headers: _authHeaders(),
+      body: body,
+      label: 'ExecuteEffect',
+    );
+  }
+
   /// **POST** `/api/Device/DeviceAnnounce`
   ///
   /// The URL given to a controller so it can phone home after provisioning.

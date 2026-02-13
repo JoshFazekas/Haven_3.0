@@ -2,4 +2,7 @@
 #include "Generated.xcconfig"
 
 // Default Debug configuration uses DEV environment
-FLUTTER_TARGET=lib/main_dev.dart
+// FLUTTER_TARGET set AFTER Generated.xcconfig so it overrides the generated value
+FLUTTER_TARGET=lib/main.dart
+// Append ENV=dev dart-define (base64: RU5WPWRldg==)
+DART_DEFINES=$(inherited),RU5WPWRldg==

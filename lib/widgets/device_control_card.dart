@@ -49,7 +49,7 @@ class DeviceControlCard extends StatefulWidget {
   final VoidCallback? onAllLightsOff;
   final VoidCallback? onImageViewTap;
   final VoidCallback? onColorPaletteTap;
-  final VoidCallback? onBrightnessTap;
+  final VoidCallback? onQuickEditTap;
   final bool isImageViewActive;
 
   /// Location-level capability — drives which icons are visible.
@@ -66,7 +66,7 @@ class DeviceControlCard extends StatefulWidget {
     this.onAllLightsOff,
     this.onImageViewTap,
     this.onColorPaletteTap,
-    this.onBrightnessTap,
+    this.onQuickEditTap,
     this.isImageViewActive = false,
     this.capability = const ItemCapability(),
     this.lightColors = const [],
@@ -189,16 +189,16 @@ class _DeviceControlCardState extends State<DeviceControlCard>
                 if (widget.capability.hasColorCapability ||
                     widget.capability.whiteCapability)
                   const SizedBox(width: 8),
-                // Brightness icon — shown only when brightnessCapability == true
+                // Quick Edit Mode icon — shown only when brightnessCapability == true
                 if (widget.capability.brightnessCapability) ...[
-                  _buildIconButton(
-                    icon: Icons.wb_sunny_outlined,
-                    backgroundColor: AllLightsZonesStyle.brightnessBackground,
-                    borderColor: AllLightsZonesStyle.brightnessBorder,
+                  _buildImageIconButton(
+                    imagePath: 'assets/images/brush.png',
+                    backgroundColor: AllLightsZonesStyle.quickEditBackground,
+                    borderColor: AllLightsZonesStyle.quickEditBorder,
                     onTap: () {
                       HapticFeedback.mediumImpact();
-                      widget.onBrightnessTap?.call();
-                      debugPrint('Brightness tapped');
+                      widget.onQuickEditTap?.call();
+                      debugPrint('Quick Edit Mode tapped');
                     },
                   ),
                   const SizedBox(width: 8),
@@ -250,31 +250,6 @@ class _DeviceControlCardState extends State<DeviceControlCard>
           label,
           textAlign: TextAlign.center,
           style: AllLightsZonesStyle.buttonTextStyle,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildIconButton({
-    required IconData icon,
-    required VoidCallback onTap,
-    Color backgroundColor = AllLightsZonesStyle.buttonBackgroundColor,
-    Color borderColor = AllLightsZonesStyle.buttonBorderColor,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(AllLightsZonesStyle.iconButtonPadding),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(
-            AllLightsZonesStyle.iconButtonRadius,
-          ),
-        ),
-        child: Icon(
-          icon,
-          color: Colors.white,
-          size: AllLightsZonesStyle.iconSize,
         ),
       ),
     );

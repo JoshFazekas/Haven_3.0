@@ -1,9 +1,9 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
 
-// HavenApp-PROD Release Configuration
+// HavenApp-LOCAL Release Configuration
 FLUTTER_TARGET=lib/main.dart
 PRODUCT_BUNDLE_IDENTIFIER=com.haven.app3
-PRODUCT_NAME=Haven
-// Append ENV=prod dart-define (base64: RU5WPXByb2Q=)
-DART_DEFINES=$(inherited),RU5WPXByb2Q=
+PRODUCT_NAME=Haven LOCAL
+// Append ENV=local dart-define (base64: RU5WPWxvY2Fs)
+DART_DEFINES=$(inherited),RU5WPWxvY2Fs

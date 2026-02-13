@@ -7,6 +7,7 @@ import '../widgets/rename_popup.dart';
 import '../core/utils/color_capability.dart';
 import '../core/utils/ui_effects.dart';
 import '../core/services/command_service.dart';
+import '../core/services/haven_api.dart';
 import '../core/services/location_data_service.dart';
 import 'create_effect_screen.dart';
 
@@ -67,6 +68,11 @@ class LightControlWrapper extends StatefulWidget {
   final int initialTabIndex;
   final Map<String, dynamic>? initialEffectConfig;
   final UIEffect? initialApiEffect;
+
+  /// The effect ID from the API when `lightingStatus == "EFFECT"`.
+  /// Used to highlight the currently-playing effect in the My Effects list.
+  final int? initialApiEffectId;
+
   final String? colorCapability; // "Legacy" or "Extended"
   final String? lightType; // e.g. "TRIM LIGHT", "K SERIES", etc.
 
@@ -91,6 +97,7 @@ class LightControlWrapper extends StatefulWidget {
     this.initialTabIndex = 0,
     this.initialEffectConfig,
     this.initialApiEffect,
+    this.initialApiEffectId,
     this.colorCapability,
     this.lightType,
     this.capability = const ItemCapability(),
@@ -120,6 +127,11 @@ class _LightControlWrapperState extends State<LightControlWrapper>
   AnimationController? _effectAnimationController;
   UIEffect _apiEffect = UIEffect.none;
 
+  /// The API effect ID currently playing on this target.
+  /// Comes from `lightingStateId` when status is "EFFECT", or set
+  /// when the user taps play on an API effect from the My Effects list.
+  int? _playingApiEffectId;
+
   // Effects tab folder selection state
   String? _effectsSelectedFolder;
 
@@ -148,6 +160,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     _brightness = widget.initialBrightness ?? 100.0;
     _playingEffectConfig = widget.initialEffectConfig;
     _apiEffect = widget.initialApiEffect ?? UIEffect.none;
+    _playingApiEffectId = widget.initialApiEffectId;
 
     // If there's an API effect, use its primary color instead of orange
     if (_apiEffect.isValid && _playingEffectConfig == null) {
@@ -218,9 +231,27 @@ class _LightControlWrapperState extends State<LightControlWrapper>
 
   void _onEffectStarted(Map<String, dynamic> effectConfig) {
     setState(() {
-      _playingEffectConfig = effectConfig;
-      _apiEffect = UIEffect.none; // Local effect replaces API effect
       _isOn = true;
+
+      if (effectConfig['apiEffect'] == true) {
+        // API effect: parse the configuration into a UIEffect so the
+        // light card renders the correct animation (e.g. Cascade).
+        // Don't set _playingEffectConfig — the card uses _apiEffect
+        // for API-driven rendering, and the effects list uses
+        // _playingApiEffectId for the stop-button highlight.
+        _playingEffectConfig = null;
+        _playingApiEffectId = effectConfig['id'] as int?;
+        final configStr = effectConfig['configuration'] as String?;
+        _apiEffect = UIEffect.parseConfiguration(configStr);
+        if (_apiEffect.isValid) {
+          _selectedColor = _apiEffect.primaryColor;
+        }
+      } else {
+        // Local preset effect — clear API effect state
+        _playingEffectConfig = effectConfig;
+        _playingApiEffectId = null;
+        _apiEffect = UIEffect.none;
+      }
     });
     _effectAnimationController?.repeat();
   }
@@ -229,6 +260,7 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     setState(() {
       _playingEffectConfig = null;
       _apiEffect = UIEffect.none;
+      _playingApiEffectId = null;
       // Default to warm white (2700K) when effect is stopped
       _selectedColor = const Color(0xFFF8E96C);
     });
@@ -577,6 +609,11 @@ class _LightControlWrapperState extends State<LightControlWrapper>
           onEffectStarted: _onEffectStarted,
           onEffectStopped: _onEffectStopped,
           playingEffectConfig: _playingEffectConfig,
+          playingApiEffectId: _playingApiEffectId,
+          locationId: widget.locationId,
+          lightId: widget.lightId,
+          zoneId: widget.zoneId,
+          isAllLightsMode: widget.isAllLightsMode,
           onFolderChanged: (folder) {
             setState(() {
               _effectsSelectedFolder = folder;
@@ -1186,6 +1223,12 @@ class EffectsTabContent extends StatefulWidget {
   final Function(Map<String, dynamic> effectConfig)? onEffectStarted;
   final Function()? onEffectStopped;
   final Map<String, dynamic>? playingEffectConfig;
+
+  /// The API effect ID currently playing on this target (from lightingStateId
+  /// when lightingStatus == "EFFECT", or set when user taps play).
+  /// Used to show the stop button next to the matching effect in My Effects.
+  final int? playingApiEffectId;
+
   final Function(String?)? onFolderChanged;
   final bool showCreateEffect;
   final VoidCallback? onCreateEffectBack;
@@ -1193,6 +1236,10 @@ class EffectsTabContent extends StatefulWidget {
   onConfigScreenChanged; // Notify parent about config screen state
   final Function(VoidCallback?)?
   onSaveCallbackChanged; // Pass save callback from effect config screens
+  final int? locationId; // Location ID for fetching user effects from API
+  final int? lightId; // Light ID for executing effects on a single light
+  final int? zoneId; // Zone ID for executing effects on a zone
+  final bool isAllLightsMode; // Whether targeting entire location
 
   const EffectsTabContent({
     super.key,
@@ -1201,11 +1248,16 @@ class EffectsTabContent extends StatefulWidget {
     this.onEffectStarted,
     this.onEffectStopped,
     this.playingEffectConfig,
+    this.playingApiEffectId,
     this.onFolderChanged,
     this.showCreateEffect = false,
     this.onCreateEffectBack,
     this.onConfigScreenChanged,
     this.onSaveCallbackChanged,
+    this.locationId,
+    this.lightId,
+    this.zoneId,
+    this.isAllLightsMode = false,
   });
 
   @override
@@ -1220,6 +1272,11 @@ class _EffectsTabContentState extends State<EffectsTabContent>
   AnimationController? _sendingAnimationController;
   Animation<double>? _sendingAnimation;
   AnimationController? _waveAnimationController;
+
+  // My Effects loaded from API
+  List<Map<String, dynamic>> _myEffects = [];
+  bool _myEffectsLoading = false;
+  bool _myEffectsLoaded = false;
 
   @override
   void initState() {
@@ -1258,70 +1315,106 @@ class _EffectsTabContentState extends State<EffectsTabContent>
     super.dispose();
   }
 
+  /// Fetch user-created effects from the API for the current location.
+  Future<void> _fetchMyEffects() async {
+    final locationId = widget.locationId;
+    if (locationId == null) {
+      debugPrint('EffectsTab: No locationId, cannot fetch My Effects');
+      return;
+    }
+    if (_myEffectsLoading) return;
+
+    setState(() {
+      _myEffectsLoading = true;
+    });
+
+    try {
+      final apiEffects = await HavenApi().getEffectsByLocation(
+        locationId: locationId,
+      );
+
+      if (!mounted) return;
+
+      // Map API response to the format used by effect cards
+      final effects = apiEffects.map<Map<String, dynamic>>((e) {
+        return {
+          'id': e['id'],
+          'name': e['name'] ?? 'Unnamed Effect',
+          'type': e['effectType'] ?? 'Unknown',
+          'effectType': (e['effectType'] as String?)?.toLowerCase() ?? 'unknown',
+          'configuration': e['configuration'] ?? '',
+          'apiEffect': true, // Flag to identify API-loaded effects
+        };
+      }).toList();
+
+      setState(() {
+        _myEffects = effects;
+        _myEffectsLoaded = true;
+        _myEffectsLoading = false;
+      });
+
+      debugPrint('EffectsTab: Loaded ${effects.length} effects from API');
+    } catch (e) {
+      debugPrint('EffectsTab: Failed to fetch My Effects: $e');
+      if (mounted) {
+        setState(() {
+          _myEffectsLoading = false;
+        });
+      }
+    }
+  }
+
+  /// Execute an API effect on the current target (light, zone, or location).
+  void _executeApiEffect(Map<String, dynamic> effect) {
+    final effectId = effect['id'] as int?;
+    if (effectId == null) {
+      debugPrint('EffectsTab: Cannot execute effect — no id');
+      return;
+    }
+
+    // Determine target id and type
+    final int targetId;
+    final String targetType;
+
+    if (widget.isAllLightsMode) {
+      final locId = widget.locationId;
+      if (locId == null) {
+        debugPrint('EffectsTab: Cannot execute — no locationId');
+        return;
+      }
+      targetId = locId;
+      targetType = 'Location';
+    } else if (widget.lightId != null) {
+      targetId = widget.lightId!;
+      targetType = 'Light';
+    } else if (widget.zoneId != null) {
+      targetId = widget.zoneId!;
+      targetType = 'Zone';
+    } else {
+      debugPrint('EffectsTab: Cannot execute — no target id');
+      return;
+    }
+
+    debugPrint(
+      'EffectsTab: Executing effect $effectId on $targetType $targetId',
+    );
+
+    CommandService()
+        .executeEffect(
+          id: targetId,
+          type: targetType,
+          effectId: effectId,
+          brightness: 10,
+        )
+        .catchError((e) {
+          debugPrint('EffectsTab: ExecuteEffect failed: $e');
+        });
+  }
+
   // Preset folders data
   static const Map<String, List<Map<String, dynamic>>> _presetFolders = {
-    'My Effects': [
-      {
-        'name': 'Halloween Fade',
-        'type': 'Wave',
-        'effectType': 'wave3',
-        'waveConfig': {
-          'startColor': Color(0xFF6053A2),
-          'peakColor': Color(0xFFEC2180),
-          'valleyColor': Color(0xFF1A1A40),
-          'waves': [
-            {
-              'wavelength': 2.5,
-              'amplitude': 0.7,
-              'speed': 1.0,
-              'direction': -1.0,
-              'phase': 0.0,
-            },
-            {
-              'wavelength': 1.5,
-              'amplitude': 0.5,
-              'speed': 1.0,
-              'direction': 1.0,
-              'phase': 0.33,
-            },
-            {
-              'wavelength': 0.8,
-              'amplitude': 0.3,
-              'speed': 2.0,
-              'direction': 1.0,
-              'phase': 0.66,
-            },
-          ],
-          'opacity': 0.8,
-        },
-      },
-      {
-        'name': 'Valentines Comets',
-        'type': 'Comet',
-        'effectType': 'comet',
-        'cometConfig': {
-          'colors': [Color(0xFF6053A2), Color(0xFFEC2180), Color(0xFF1A1A40)],
-          'cometCount': 5,
-          'tailLength': 0.25,
-          'minSpeed': 1.0,
-          'maxSpeed': 3.0,
-        },
-      },
-      {'name': 'America', 'type': 'USA Flag', 'effectType': 'usaFlag'},
-      {
-        'name': 'Halloween Sparkle',
-        'type': 'Sparkle',
-        'effectType': 'sparkle',
-        'sparkleConfig': {
-          'backgroundColor': Color(0xFF000000),
-          'sparkleColor': Color(0xFFFF6B00),
-          'sparkleCount': 25,
-          'minSize': 2.0,
-          'maxSize': 6.0,
-          'twinkleSpeed': 2.0,
-        },
-      },
-    ],
+    // My Effects is loaded from the API — see _fetchMyEffects()
+    'My Effects': [],
     // Holidays folder now contains subfolders - effects moved to _holidaySubfolders
     'Holidays': [],
     'Sports': [
@@ -2025,6 +2118,11 @@ class _EffectsTabContentState extends State<EffectsTabContent>
       _folderPath.add(folderName);
     });
     widget.onFolderChanged?.call(folderName);
+
+    // Fetch effects from API when opening My Effects
+    if (folderName == 'My Effects' && !_myEffectsLoaded) {
+      _fetchMyEffects();
+    }
   }
 
   void _goBack() {
@@ -2122,11 +2220,17 @@ class _EffectsTabContentState extends State<EffectsTabContent>
         itemBuilder: (context, index) {
           final folderName = folders[index];
 
-          // For Holidays, show subfolder count; for others, show effect count
+          // For Holidays, show subfolder count; for My Effects, show API count; for others, show effect count
           final String countText;
           if (folderName == 'Holidays') {
             final subfolderCount = _holidaySubfolders.keys.length;
             countText = '$subfolderCount categories';
+          } else if (folderName == 'My Effects') {
+            if (_myEffectsLoaded) {
+              countText = '${_myEffects.length} effects';
+            } else {
+              countText = ''; // Will show count after loading
+            }
           } else {
             final effectCount = _presetFolders[folderName]!.length;
             countText = '$effectCount effects';
@@ -2457,9 +2561,18 @@ class _EffectsTabContentState extends State<EffectsTabContent>
   }
 
   Widget _buildEffectsList(String folderName, {bool isSubfolder = false}) {
-    final effects = isSubfolder
-        ? (_holidaySubfolders[folderName] ?? [])
-        : (_presetFolders[folderName] ?? []);
+    // For My Effects, use the API-loaded effects; for others, use hardcoded presets
+    final List<Map<String, dynamic>> effects;
+    if (folderName == 'My Effects') {
+      effects = _myEffects;
+    } else if (isSubfolder) {
+      effects = _holidaySubfolders[folderName] ?? [];
+    } else {
+      effects = _presetFolders[folderName] ?? [];
+    }
+
+    // Show loading state for My Effects while fetching
+    final bool isLoading = folderName == 'My Effects' && _myEffectsLoading;
 
     return Column(
       children: [
@@ -2512,15 +2625,47 @@ class _EffectsTabContentState extends State<EffectsTabContent>
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: ListView.builder(
+            child: isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : effects.isEmpty
+                    ? Center(
+                        child: Text(
+                          folderName == 'My Effects'
+                              ? 'No effects yet.\nCreate one to get started!'
+                              : 'No effects',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'SpaceMono',
+                            fontSize: 14,
+                            color: Colors.white.withOpacity(0.5),
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
               itemCount: effects.length,
               itemBuilder: (context, index) {
                 final effect = effects[index];
                 final isPlayPressed = _pressedPlayIndex == index;
                 final isSending = _sendingIndex == index;
-                final isPlaying =
-                    widget.playingEffectConfig != null &&
-                    widget.playingEffectConfig!['name'] == effect['name'];
+
+                // Match by name (locally-started effect) or by API
+                // effect ID (effect already running when screen opened)
+                final bool isPlaying;
+                if (widget.playingEffectConfig != null &&
+                    widget.playingEffectConfig!['name'] == effect['name']) {
+                  isPlaying = true;
+                } else if (effect['apiEffect'] == true &&
+                    widget.playingApiEffectId != null &&
+                    effect['id'] == widget.playingApiEffectId) {
+                  isPlaying = true;
+                } else {
+                  isPlaying = false;
+                }
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -2588,6 +2733,12 @@ class _EffectsTabContentState extends State<EffectsTabContent>
                                     if (widget.onEffectStarted != null) {
                                       widget.onEffectStarted!(effect);
                                     }
+
+                                    // If this is an API-loaded effect, fire the execute command
+                                    if (effect['apiEffect'] == true) {
+                                      _executeApiEffect(effect);
+                                    }
+
                                     debugPrint('Play ${effect['name']}');
 
                                     Future.delayed(

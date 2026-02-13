@@ -165,6 +165,9 @@ class _LightZoneCardState extends State<LightZoneCard>
           initialBrightness: _brightness,
           initialEffectConfig: _playingEffectConfig,
           initialApiEffect: _apiEffect,
+          initialApiEffectId: _apiEffect.isValid
+              ? widget.item.lightingStateId
+              : null,
           onColorSelected:
               (
                 Color color,
@@ -191,8 +194,11 @@ class _LightZoneCardState extends State<LightZoneCard>
                     _apiEffect = UIEffect.none;
                   }
 
-                  // Start or stop animation based on effect config
-                  if (effectConfig != null) {
+                  // Start or stop animation based on effect state.
+                  // A local effect OR a still-valid API effect both need the
+                  // animation controller to keep running.
+                  if (effectConfig != null ||
+                      (_apiEffect.isValid && isOn)) {
                     _effectAnimationController?.repeat();
                   } else {
                     _effectAnimationController?.stop();

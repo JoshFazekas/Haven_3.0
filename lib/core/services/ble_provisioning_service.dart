@@ -8,6 +8,7 @@ import 'package:network_info_plus/network_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:haven/core/services/bluetooth_scan_service.dart';
 import 'package:haven/core/services/ble_debug_service.dart';
+import 'package:haven/core/config/environment.dart';
 
 /// Haven Controller BLE Service and Characteristic UUIDs (from NIKKO app)
 class HavenBleUuids {
@@ -15,11 +16,11 @@ class HavenBleUuids {
   static const String characteristicUuid = '0000000B-8C26-476F-89A7-A108033A69C7';
 }
 
-/// Haven API endpoints
+/// Haven API endpoints - uses EnvironmentConfig.baseUrl so they respect the active scheme
 class HavenApi {
-  static const String deviceAnnounceUrl = 'https://stg-api.havenlighting.com/api/Device/DeviceAnnounce';
-  static const String addDeviceToLocationUrl = 'https://stg-api.havenlighting.com/api/Devices/AddDeviceToLocation';
-  static const String getCredentialsUrl = 'https://stg-api.havenlighting.com/api/Device/GetCredentials';
+  static String get deviceAnnounceUrl => '${EnvironmentConfig.baseUrl}/api/Device/DeviceAnnounce';
+  static String get addDeviceToLocationUrl => '${EnvironmentConfig.baseUrl}/api/Devices/AddDeviceToLocation';
+  static String get getCredentialsUrl => '${EnvironmentConfig.baseUrl}/api/Device/GetCredentials';
 }
 
 /// Default WiFi credentials (for development/testing)

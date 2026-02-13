@@ -56,8 +56,8 @@ class AllLightsZonesStyle {
   static const Color colorPaletteBackground = Color(0xFF2A2A2A);
   static const Color colorPaletteBorder = Color(0xFF9E9E9E);
 
-  static const Color brightnessBackground = Color(0xFF3D2508);
-  static const Color brightnessBorder = Color(0xFFD4842A);
+  static const Color quickEditBackground = Color(0xFF3D2508);
+  static const Color quickEditBorder = Color(0xFFD4842A);
 
   static const Color imageViewActiveBackground = Color(0xFF3A7BD5);
   static const Color imageViewInactiveBackground = Color(0xFF0D1F33);

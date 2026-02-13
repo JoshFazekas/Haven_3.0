@@ -15,6 +15,25 @@ class EnvironmentConfig {
   static void init(Environment env) {
     _environment = env;
   }
+
+  /// Initialize from a compile-time --dart-define string.
+  /// Usage: flutter run --dart-define=ENV=dev
+  /// Valid values: "local", "dev", "prod" (defaults to "dev")
+  static void initFromDefine() {
+    const envString = String.fromEnvironment('ENV', defaultValue: 'dev');
+    switch (envString) {
+      case 'local':
+        _environment = Environment.local;
+        break;
+      case 'prod':
+        _environment = Environment.prod;
+        break;
+      case 'dev':
+      default:
+        _environment = Environment.dev;
+        break;
+    }
+  }
   
   /// Get the current environment
   static Environment get current => _environment;

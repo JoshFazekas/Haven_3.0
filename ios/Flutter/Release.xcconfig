@@ -2,4 +2,7 @@
 #include "Generated.xcconfig"
 
 // Default Release configuration uses PROD environment
-FLUTTER_TARGET=lib/main_prod.dart
+// FLUTTER_TARGET set AFTER Generated.xcconfig so it overrides the generated value
+FLUTTER_TARGET=lib/main.dart
+// Append ENV=prod dart-define (base64: RU5WPXByb2Q=)
+DART_DEFINES=$(inherited),RU5WPXByb2Q=

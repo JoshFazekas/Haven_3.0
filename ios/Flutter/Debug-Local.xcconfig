@@ -1,9 +1,9 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
 #include "Generated.xcconfig"
 
-// HavenApp-DEV Debug Configuration
+// HavenApp-LOCAL Debug Configuration
 FLUTTER_TARGET=lib/main.dart
 PRODUCT_BUNDLE_IDENTIFIER=com.haven.app3
-PRODUCT_NAME=Haven DEV
-// Append ENV=dev dart-define (base64: RU5WPWRldg==)
-DART_DEFINES=$(inherited),RU5WPWRldg==
+PRODUCT_NAME=Haven LOCAL
+// Append ENV=local dart-define (base64: RU5WPWxvY2Fs)
+DART_DEFINES=$(inherited),RU5WPWxvY2Fs

@@ -5,8 +5,9 @@ import 'package:haven/screens/splash_screen.dart';
 import 'package:haven/widgets/dev_indicator.dart';
 
 void main() {
-  // Default to DEV environment when using main.dart
-  EnvironmentConfig.init(Environment.dev);
+  // Read environment from --dart-define=ENV=dev|prod|local
+  // Defaults to 'dev' if not specified
+  EnvironmentConfig.initFromDefine();
   runApp(const MyApp());
 }
 

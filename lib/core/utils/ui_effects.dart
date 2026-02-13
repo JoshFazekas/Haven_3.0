@@ -173,6 +173,52 @@ class UIEffect {
 
   /// Whether this represents a valid, displayable effect.
   bool get isValid => type != UIEffectType.unknown;
+
+  /// Parses a raw configuration JSON string (e.g. from the
+  /// `/api/Effect/ByLocation` response's `configuration` field)
+  /// into a [UIEffect].
+  ///
+  /// Returns [UIEffect.none] if the string is null, empty, or not
+  /// a recognised effect format.
+  static UIEffect parseConfiguration(String? configuration) {
+    if (configuration == null || configuration.isEmpty) {
+      return UIEffect.none;
+    }
+
+    final trimmed = configuration.trim();
+    if (!trimmed.startsWith('{') &&
+        !trimmed.startsWith(r'\{') &&
+        !trimmed.startsWith(r'\"')) {
+      return UIEffect.none;
+    }
+
+    try {
+      dynamic decoded;
+      try {
+        decoded = jsonDecode(configuration);
+      } catch (_) {
+        final cleaned = configuration
+            .replaceAll(r'\"', '"')
+            .replaceAll(r'\\', r'\');
+        decoded = jsonDecode(cleaned);
+      }
+
+      if (decoded is! Map<String, dynamic>) {
+        debugPrint(
+          'UIEffect.parseConfiguration: decoded value is not a Map — ${decoded.runtimeType}',
+        );
+        return UIEffect.none;
+      }
+
+      debugPrint(
+        'UIEffect.parseConfiguration: detected keys = ${decoded.keys.toList()}',
+      );
+      return _parseFromJson(decoded);
+    } catch (e) {
+      debugPrint('UIEffect.parseConfiguration: failed to decode — $e');
+      return UIEffect.none;
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════

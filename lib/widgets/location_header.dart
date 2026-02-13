@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:haven/screens/menu_screen.dart';
+import 'package:haven/core/services/auth_state.dart';
+import 'package:haven/screens/auth_screen.dart' as auth;
 
 class LocationHeader extends StatefulWidget {
   final String locationName;
@@ -31,6 +33,56 @@ class _LocationHeaderState extends State<LocationHeader> {
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (context) => const MenuScreen()));
+  }
+
+  Future<void> _handleLogout(BuildContext context) async {
+    // Close dropdown
+    _removeOverlay();
+    
+    // Show confirmation dialog
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: const Text(
+          'Log Out',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Are you sure you want to log out?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Log Out',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (shouldLogout && mounted) {
+      // Clear tokens, session, and location ID
+      await AuthState().logout();
+      
+      // Return to sign in screen
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const auth.SignInScreen()),
+          (route) => false,
+        );
+      }
+    }
   }
 
   void _toggleDropdown() {
@@ -113,6 +165,34 @@ class _LocationHeaderState extends State<LocationHeader> {
                             color: Colors.white.withOpacity(0.1),
                           ),
                       ],
+                      // Divider before logout
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: Colors.white.withOpacity(0.1),
+                      ),
+                      // Logout option
+                      InkWell(
+                        onTap: () {
+                          _removeOverlay();
+                          _handleLogout(context);
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          child: const Text(
+                            'Log Out',
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
