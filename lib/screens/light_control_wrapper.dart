@@ -266,6 +266,25 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     });
     _effectAnimationController?.stop();
     _effectAnimationController?.reset();
+
+    // Send the warm white (2700K, colorId=1) command to the API
+    // so the light actually changes and the card refreshes.
+    const warmWhiteId = 1;
+    if (widget.isAllLightsMode) {
+      CommandService().setAllColor(colorId: warmWhiteId).catchError((e) {
+        debugPrint('SetAllColor (warm white on stop) failed: $e');
+      });
+    } else {
+      final id = widget.lightId ?? widget.zoneId;
+      final type = widget.lightId != null ? 'Light' : 'Zone';
+      if (id != null) {
+        CommandService()
+            .setColor(id: id, type: type, colorId: warmWhiteId)
+            .catchError((e) {
+              debugPrint('SetColor (warm white on stop) failed: $e');
+            });
+      }
+    }
   }
 
   void _onTabSelected(int index) {
