@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
-import '../widgets/effect_painters.dart';
+import '../widgets/light_card_body.dart';
 import '../widgets/rename_popup.dart';
 import '../core/utils/color_capability.dart';
 import '../core/utils/ui_effects.dart';
@@ -610,518 +610,182 @@ class _LightControlWrapperState extends State<LightControlWrapper>
     }
   }
 
-  // White temperature color values to detect (must match ColorCapability whites)
-  static const Set<int> _whiteTemperatureValues = {
-    0xFFF8E96C, // 2700K
-    0xFFF6F08E, // 3000K
-    0xFFF4F4AC, // 3500K
-    0xFFF2F4C2, // 3700K
-    0xFFECF5DA, // 4000K
-    0xFFE3F3E9, // 4100K
-    0xFFDDF1F2, // 4700K
-    0xFFD6EFF6, // 5000K
-  };
-
-  bool _isWhiteTemperature(Color color) {
-    return _whiteTemperatureValues.contains(color.value);
-  }
-
   Widget _buildLightCard() {
-    final isPlayingEffect = _playingEffectConfig != null;
-    final isPlayingApiEffect = _apiEffect.isValid && !isPlayingEffect;
-    final isWhite = _isWhiteTemperature(_selectedColor);
-
-    // Use different calculations for whites vs colors
-    final Color cardColor;
-    final Color borderColor;
-
-    if (isPlayingApiEffect) {
-      // API effect (cascade from server)
-      borderColor = _apiEffect.primaryColor.withOpacity(_isOn ? 0.7 : 0.35);
-      cardColor = _isOn ? const Color(0xFF000000) : const Color(0xFF1D1D1D);
-    } else if (isPlayingEffect) {
-      final effectType = _playingEffectConfig!['effectType'] as String?;
-
-      if (effectType == 'wave3') {
-        // Wave effect: use peak color for border
-        final waveConfig =
-            _playingEffectConfig!['waveConfig'] as Map<String, dynamic>;
-        final peakColor = waveConfig['peakColor'] as Color;
-        borderColor = peakColor.withOpacity(0.7);
-        // When off, use grey like other colors' off state
-        cardColor = _isOn ? const Color(0xFF1A1A1A) : const Color(0xFF1D1D1D);
-      } else if (effectType == 'comet') {
-        // Comet effect: use primary color (first color) for border, black background
-        final cometConfig =
-            _playingEffectConfig!['cometConfig'] as Map<String, dynamic>;
-        final colors = (cometConfig['colors'] as List).cast<Color>();
-        final primaryColor = colors.isNotEmpty ? colors[0] : Colors.purple;
-        borderColor = primaryColor.withOpacity(0.7);
-        // Black background for comet effect, grey when off
-        cardColor = _isOn ? const Color(0xFF000000) : const Color(0xFF1D1D1D);
-      } else if (effectType == 'usaFlag') {
-        // USA Flag effect: use blue for border (stars field color)
-        borderColor = const Color(0xFF3C3B6E).withOpacity(0.7);
-        // Black background for flag effect
-        cardColor = _isOn ? const Color(0xFF000000) : const Color(0xFF1D1D1D);
-      } else if (effectType == 'sparkle') {
-        // Sparkle effect: use sparkle color for border
-        final sparkleConfig =
-            _playingEffectConfig!['sparkleConfig'] as Map<String, dynamic>;
-        final sparkleColor = sparkleConfig['sparkleColor'] as Color;
-        borderColor = sparkleColor.withOpacity(0.7);
-        // Use background color from config
-        final bgColor = sparkleConfig['backgroundColor'] as Color;
-        cardColor = _isOn ? bgColor : const Color(0xFF1D1D1D);
-      } else {
-        // Default for other effect types
-        borderColor = Colors.white.withOpacity(0.3);
-        cardColor = _isOn ? const Color(0xFF1D1D1D) : const Color(0xFF1D1D1D);
-      }
-    } else if (isWhite) {
-      // For whites: use Color.lerp for better blending
-      cardColor = _isOn
-          ? (_brightness == 0
-                ? const Color(0xFF212121)
-                : Color.lerp(
-                    const Color(0xFF1D1D1D),
-                    _selectedColor,
-                    0.20 + (0.35 * (_brightness / 100)),
-                  )!)
-          : const Color(0xFF1D1D1D);
-      borderColor = Color.lerp(
-        const Color(0xFF1D1D1D),
-        _selectedColor,
-        0.5,
-      )!.withOpacity(0.7);
-    } else {
-      // For colors: use HSL for richer color display
-      cardColor = _isOn
-          ? (_brightness == 0
-                ? const Color(0xFF212121)
-                : HSLColor.fromColor(_selectedColor)
-                      .withLightness(
-                        (HSLColor.fromColor(_selectedColor).lightness * 0.18) +
-                            (HSLColor.fromColor(_selectedColor).lightness *
-                                0.45 *
-                                (_brightness / 100)),
-                      )
-                      .toColor())
-          : const Color(0xFF1D1D1D);
-      borderColor = HSLColor.fromColor(_selectedColor)
-          .withLightness(HSLColor.fromColor(_selectedColor).lightness * 0.4)
-          .toColor()
-          .withOpacity(0.7);
-    }
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 9),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: borderColor, width: 4),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            width: double.infinity,
-            height: 115,
-            decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Stack(
+      child: LightCardBody(
+        lightName: widget.lightName,
+        controllerTypeName: widget.controllerTypeName,
+        isOn: _isOn,
+        selectedColor: _selectedColor,
+        brightness: _brightness,
+        cardHeight: 115,
+        playingEffectConfig: _playingEffectConfig,
+        apiEffect: _apiEffect,
+        effectAnimationController: _effectAnimationController,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        onToggleChanged: (value) {
+          HapticFeedback.mediumImpact();
+          if (value && _brightness == 0) {
+            // If turning on with brightness at 0, set to 100
+            setState(() {
+              _brightness = 100.0;
+            });
+          }
+          _onIsOnChanged(value);
+          _onToggleCommand(value);
+        },
+        onMenuTap: () async {
+          HapticFeedback.mediumImpact();
+          final type = widget.zoneId != null ? 'Zone' : 'Light';
+          final newName = await showRenamePopup(
+            context,
+            itemType: type,
+            currentName: widget.lightName,
+          );
+          if (newName != null) {
+            final id = widget.lightId ?? widget.zoneId;
+            if (id != null) {
+              debugPrint('Rename ${widget.lightName} → $newName');
+              CommandService()
+                  .renameLightOrZone(
+                    lightId: id,
+                    name: newName,
+                  )
+                  .catchError((e) {
+                    debugPrint('Rename failed: $e');
+                  });
+            }
+          }
+        },
+        bottomContent: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Row(
               children: [
-                // Wave effect background when playing and light is on
-                if (isPlayingEffect &&
-                    _isOn &&
-                    _playingEffectConfig!['effectType'] == 'wave3' &&
-                    _effectAnimationController != null)
-                  Positioned.fill(
-                    child: AnimatedBuilder(
-                      animation: _effectAnimationController!,
-                      builder: (context, child) {
-                        final waveConfig =
-                            _playingEffectConfig!['waveConfig']
-                                as Map<String, dynamic>;
-                        return CustomPaint(
-                          size: const Size(double.infinity, 115),
-                          painter: Wave3EffectPainter(
-                            animationValue: _effectAnimationController!.value,
-                            startColor: waveConfig['startColor'] as Color,
-                            peakColor: waveConfig['peakColor'] as Color,
-                            valleyColor: waveConfig['valleyColor'] as Color,
-                            waves: (waveConfig['waves'] as List)
-                                .cast<Map<String, dynamic>>(),
-                            opacity: waveConfig['opacity'] as double,
-                            isOn: _isOn,
-                            brightness: _brightness,
+                Expanded(
+                  child: AnimatedBuilder(
+                    animation:
+                        _sliderFadeController ??
+                        AnimationController(vsync: this),
+                    builder: (context, child) {
+                      final sliderColor = _showBrightnessIndicator
+                          ? Colors.white
+                          : (_sliderColorAnimation?.value ??
+                                const Color(0xFFB0B0B0));
+
+                      return SliderTheme(
+                        data: SliderThemeData(
+                          trackHeight: 4,
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 8,
                           ),
-                        );
-                      },
-                    ),
-                  ),
-                // Comet effect background when playing and light is on
-                if (isPlayingEffect &&
-                    _isOn &&
-                    _playingEffectConfig!['effectType'] == 'comet' &&
-                    _effectAnimationController != null)
-                  Positioned.fill(
-                    child: AnimatedBuilder(
-                      animation: _effectAnimationController!,
-                      builder: (context, child) {
-                        final cometConfig =
-                            _playingEffectConfig!['cometConfig']
-                                as Map<String, dynamic>;
-                        return CustomPaint(
-                          size: const Size(double.infinity, 115),
-                          painter: CometEffectPainter(
-                            animationValue: _effectAnimationController!.value,
-                            colors: (cometConfig['colors'] as List)
-                                .cast<Color>(),
-                            cometCount: cometConfig['cometCount'] as int,
-                            tailLength: cometConfig['tailLength'] as double,
-                            minSpeed: cometConfig['minSpeed'] as double,
-                            maxSpeed: cometConfig['maxSpeed'] as double,
-                            isOn: _isOn,
-                            brightness: _brightness,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                // USA Flag effect background when playing and light is on
-                if (isPlayingEffect &&
-                    _isOn &&
-                    _playingEffectConfig!['effectType'] == 'usaFlag' &&
-                    _effectAnimationController != null)
-                  Positioned.fill(
-                    child: AnimatedBuilder(
-                      animation: _effectAnimationController!,
-                      builder: (context, child) {
-                        return CustomPaint(
-                          size: const Size(double.infinity, 115),
-                          painter: USAFlagEffectPainter(
-                            animationValue: _effectAnimationController!.value,
-                            isOn: _isOn,
-                            brightness: _brightness,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                // Sparkle effect background when playing and light is on
-                if (isPlayingEffect &&
-                    _isOn &&
-                    _playingEffectConfig!['effectType'] == 'sparkle' &&
-                    _effectAnimationController != null)
-                  Positioned.fill(
-                    child: AnimatedBuilder(
-                      animation: _effectAnimationController!,
-                      builder: (context, child) {
-                        final sparkleConfig =
-                            _playingEffectConfig!['sparkleConfig']
-                                as Map<String, dynamic>;
-                        return CustomPaint(
-                          size: const Size(double.infinity, 115),
-                          painter: SparkleEffectPainter(
-                            animationValue: _effectAnimationController!.value,
-                            backgroundColor:
-                                sparkleConfig['backgroundColor'] as Color,
-                            sparkleColor:
-                                sparkleConfig['sparkleColor'] as Color,
-                            sparkleCount: sparkleConfig['sparkleCount'] as int,
-                            minSize: sparkleConfig['minSize'] as double,
-                            maxSize: sparkleConfig['maxSize'] as double,
-                            twinkleSpeed:
-                                sparkleConfig['twinkleSpeed'] as double,
-                            isOn: _isOn,
-                            brightness: _brightness,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                // API cascade effect background
-                if (isPlayingApiEffect &&
-                    _isOn &&
-                    _effectAnimationController != null)
-                  Positioned.fill(
-                    child: AnimatedBuilder(
-                      animation: _effectAnimationController!,
-                      builder: (context, child) {
-                        return CustomPaint(
-                          size: const Size(double.infinity, 115),
-                          painter: _apiEffect.painter(
-                            animationValue: _effectAnimationController!.value,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                // Dark overlay for API effects
-                if (isPlayingApiEffect && _isOn)
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.35),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                  ),
-                // Content overlay
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              widget.lightName,
-                              style: const TextStyle(
-                                fontFamily: 'SpaceMono',
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                          overlayShape:
+                              const RoundSliderOverlayShape(
+                                overlayRadius: 16,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                          activeTrackColor: sliderColor,
+                          inactiveTrackColor: Colors.white
+                              .withOpacity(0.3),
+                          thumbColor: sliderColor,
+                          overlayColor: Colors.white.withOpacity(
+                            0.2,
                           ),
-                          const SizedBox(width: 12),
-                          if (widget.controllerTypeName != null &&
-                              widget.controllerTypeName!.isNotEmpty)
-                            Text(
-                              widget.controllerTypeName!,
-                              style: const TextStyle(
-                                fontFamily: 'SpaceMono',
-                                fontSize: 11,
-                                fontWeight: FontWeight.w400,
-                                color: Colors.white,
-                              ),
-                            ),
-                        ],
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Transform.scale(
-                            scale: 1.15,
-                            alignment: Alignment.centerLeft,
-                            child: Switch(
-                              value: _isOn,
-                              onChanged: (value) {
-                                HapticFeedback.mediumImpact();
-                                if (value && _brightness == 0) {
-                                  // If turning on with brightness at 0, set to 100
-                                  setState(() {
-                                    _brightness = 100.0;
-                                  });
-                                }
-                                _onIsOnChanged(value);
-                                _onToggleCommand(value);
-                              },
-                              activeColor: Colors.white,
-                              activeTrackColor: _isOn
-                                  ? (isPlayingEffect
-                                        ? Colors.white.withOpacity(0.3)
-                                        : (isWhite
-                                              ? Color.lerp(
-                                                  const Color(0xFF2A2A2A),
-                                                  _selectedColor,
-                                                  0.3,
-                                                )
-                                              : HSLColor.fromColor(
-                                                      _selectedColor,
-                                                    )
-                                                    .withLightness(
-                                                      HSLColor.fromColor(
-                                                            _selectedColor,
-                                                          ).lightness *
-                                                          0.3,
-                                                    )
-                                                    .toColor()))
-                                  : null,
-                              inactiveThumbColor: Colors.grey,
-                              inactiveTrackColor: const Color(0xFF3A3A3A),
-                            ),
-                          ),
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () async {
-                              HapticFeedback.mediumImpact();
-                              final type = widget.zoneId != null ? 'Zone' : 'Light';
-                              final newName = await showRenamePopup(
-                                context,
-                                itemType: type,
-                                currentName: widget.lightName,
-                              );
-                              if (newName != null) {
-                                final id = widget.lightId ?? widget.zoneId;
-                                if (id != null) {
-                                  debugPrint('Rename ${widget.lightName} → $newName');
-                                  CommandService()
-                                      .renameLightOrZone(
-                                        lightId: id,
-                                        name: newName,
-                                      )
-                                      .catchError((e) {
-                                        debugPrint('Rename failed: $e');
-                                      });
-                                }
+                        ),
+                        child: Slider(
+                          value: _brightness,
+                          min: 0,
+                          max: 100,
+                          onChanged: (value) {
+                            _fadeTimer?.cancel();
+                            _sliderFadeController?.reset();
+
+                            setState(() {
+                              _brightness = value;
+                              _showBrightnessIndicator = true;
+                              if (value == 0 && _isOn) {
+                                _isOn = false;
+                              } else if (value > 0 && !_isOn) {
+                                _isOn = true;
                               }
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.all(4),
-                              child: const Icon(
-                                Icons.more_vert,
-                                color: Colors.white,
-                                size: 32,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      // Bottom row: Brightness slider with indicator
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: AnimatedBuilder(
-                                  animation:
-                                      _sliderFadeController ??
-                                      AnimationController(vsync: this),
-                                  builder: (context, child) {
-                                    final sliderColor = _showBrightnessIndicator
-                                        ? Colors.white
-                                        : (_sliderColorAnimation?.value ??
-                                              const Color(0xFFB0B0B0));
+                            });
+                          },
+                          onChangeStart: (value) {
+                            _fadeTimer?.cancel();
+                            _sliderFadeController?.reset();
 
-                                    return SliderTheme(
-                                      data: SliderThemeData(
-                                        trackHeight: 4,
-                                        thumbShape: const RoundSliderThumbShape(
-                                          enabledThumbRadius: 8,
-                                        ),
-                                        overlayShape:
-                                            const RoundSliderOverlayShape(
-                                              overlayRadius: 16,
-                                            ),
-                                        activeTrackColor: sliderColor,
-                                        inactiveTrackColor: Colors.white
-                                            .withOpacity(0.3),
-                                        thumbColor: sliderColor,
-                                        overlayColor: Colors.white.withOpacity(
-                                          0.2,
-                                        ),
-                                      ),
-                                      child: Slider(
-                                        value: _brightness,
-                                        min: 0,
-                                        max: 100,
-                                        onChanged: (value) {
-                                          _fadeTimer?.cancel();
-                                          _sliderFadeController?.reset();
+                            setState(() {
+                              _showBrightnessIndicator = true;
+                            });
+                          },
+                          onChangeEnd: (value) {
+                            HapticFeedback.mediumImpact();
+                            setState(() {
+                              _showBrightnessIndicator = false;
+                            });
+                            debugPrint(
+                              'Brightness set to: ${value.round()}%',
+                            );
 
-                                          setState(() {
-                                            _brightness = value;
-                                            _showBrightnessIndicator = true;
-                                            if (value == 0 && _isOn) {
-                                              _isOn = false;
-                                            } else if (value > 0 && !_isOn) {
-                                              _isOn = true;
-                                            }
-                                          });
-                                        },
-                                        onChangeStart: (value) {
-                                          _fadeTimer?.cancel();
-                                          _sliderFadeController?.reset();
+                            _onBrightnessChanged(value);
 
-                                          setState(() {
-                                            _showBrightnessIndicator = true;
-                                          });
-                                        },
-                                        onChangeEnd: (value) {
-                                          HapticFeedback.mediumImpact();
-                                          setState(() {
-                                            _showBrightnessIndicator = false;
-                                          });
-                                          debugPrint(
-                                            'Brightness set to: ${value.round()}%',
-                                          );
-
-                                          _fadeTimer?.cancel();
-                                          _fadeTimer = Timer(
-                                            const Duration(milliseconds: 500),
-                                            () {
-                                              _sliderFadeController?.forward();
-                                            },
-                                          );
-                                        },
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          // Brightness indicator
-                          if (_showBrightnessIndicator)
-                            Positioned(
-                              top: -35,
-                              left:
-                                  (_brightness / 100) *
-                                      (MediaQuery.of(context).size.width -
-                                          110) +
-                                  14 -
-                                  5,
-                              child: AnimatedOpacity(
-                                opacity: _showBrightnessIndicator ? 1.0 : 0.0,
-                                duration: const Duration(milliseconds: 150),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.2),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Text(
-                                    '${_brightness.round()}',
-                                    style: const TextStyle(
-                                      fontFamily: 'SpaceMono',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
+                            _fadeTimer?.cancel();
+                            _fadeTimer = Timer(
+                              const Duration(milliseconds: 500),
+                              () {
+                                _sliderFadeController?.forward();
+                              },
+                            );
+                          },
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],
             ),
-          ),
+            // Brightness indicator
+            if (_showBrightnessIndicator)
+              Positioned(
+                top: -35,
+                left:
+                    (_brightness / 100) *
+                        (MediaQuery.of(context).size.width -
+                            110) +
+                    14 -
+                    5,
+                child: AnimatedOpacity(
+                  opacity: _showBrightnessIndicator ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 150),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      '${_brightness.round()}',
+                      style: const TextStyle(
+                        fontFamily: 'SpaceMono',
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -1746,7 +1410,7 @@ class _EffectsTabContentState extends State<EffectsTabContent>
           'waves': [
             {
               'wavelength': 2.0,
-              'amplitude': 0.7,
+              'amplitude:': 0.7,
               'speed': 1.5,
               'direction': 1.0,
               'phase': 0.0,
