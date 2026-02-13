@@ -772,6 +772,72 @@ class LocationDataService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Optimistically update a single light's effect in the local data.
+  ///
+  /// Sets `lightingStatus` to `"EFFECT"` and `lightingStateName` to
+  /// [effectConfig] (the JSON configuration string) so the UI reflects
+  /// the effect animation immediately — before the API responds.
+  void optimisticSetEffect({
+    required int lightId,
+    required int effectId,
+    String? effectConfig,
+  }) {
+    final idx = _zonesAndLights.indexWhere((item) => item.lightId == lightId);
+    if (idx == -1) return;
+
+    _pendingExpectations[lightId] = _OptimisticExpectation(
+      expectedStatusId: 4, // EFFECT
+      expectedLightingStateName: effectConfig,
+      createdAt: DateTime.now(),
+    );
+
+    final old = _zonesAndLights[idx];
+    _zonesAndLights[idx] = old.copyWith(
+      lightingStatus: 'EFFECT',
+      lightingStateName: effectConfig,
+      lightingStateId: effectId,
+    );
+
+    debugPrint(
+      'LocationDataService: Optimistic effect — '
+      'light $lightId → effectId=$effectId',
+    );
+    notifyListeners();
+  }
+
+  /// Optimistically update the effect on **all** lights and zones.
+  ///
+  /// Sets every item's `lightingStatus` to `"EFFECT"` and
+  /// `lightingStateName` to [effectConfig] so the UI reflects
+  /// the effect animation immediately.
+  void optimisticSetEffectAll({
+    required int effectId,
+    String? effectConfig,
+  }) {
+    final now = DateTime.now();
+    for (int i = 0; i < _zonesAndLights.length; i++) {
+      final item = _zonesAndLights[i];
+      if (item.lightId != null) {
+        _pendingExpectations[item.lightId!] = _OptimisticExpectation(
+          expectedStatusId: 4, // EFFECT
+          expectedLightingStateName: effectConfig,
+          createdAt: now,
+        );
+      }
+      _zonesAndLights[i] = item.copyWith(
+        lightingStatus: 'EFFECT',
+        lightingStateName: effectConfig,
+        lightingStateId: effectId,
+      );
+    }
+
+    debugPrint(
+      'LocationDataService: Optimistic effect ALL — '
+      '${_zonesAndLights.length} items → effectId=$effectId',
+    );
+    notifyListeners();
+  }
+
   /// Switch to a different location. Clears old data, fetches fresh data
   /// from the API, and stores the result.
   ///
@@ -880,10 +946,26 @@ class LocationDataService extends ChangeNotifier {
       if (idx == -1) continue;
 
       final old = _zonesAndLights[idx];
+
+      // Resolve the expected lightingStatus string from the status ID
+      String? resolvedStatus;
+      if (expectation.expectedStatusId != null) {
+        switch (expectation.expectedStatusId) {
+          case 1:
+            resolvedStatus = 'OFF';
+            break;
+          case 4:
+            resolvedStatus = 'EFFECT';
+            break;
+          default:
+            resolvedStatus = 'SOLID_COLOR';
+        }
+      }
+
       _zonesAndLights[idx] = old.copyWith(
-        lightingStatus: expectation.expectedStatusId != null
-            ? (expectation.expectedStatusId == 1 ? 'OFF' : 'SOLID_COLOR')
-            : old.lightingStatus,
+        lightingStatus: resolvedStatus ?? old.lightingStatus,
+        lightingStateName:
+            expectation.expectedLightingStateName ?? old.lightingStateName,
         colorId: expectation.expectedColorId ?? old.colorId,
         lightingStateId: expectation.expectedColorId ?? old.lightingStateId,
         lightBrightnessId:
@@ -1056,6 +1138,9 @@ class _OptimisticExpectation {
   /// The `lightBrightnessId` we expect (1–10, null if unchanged).
   final int? expectedBrightnessId;
 
+  /// The `lightingStateName` we expect (e.g. effect config JSON).
+  final String? expectedLightingStateName;
+
   /// When this expectation was created.
   final DateTime createdAt;
 
@@ -1063,13 +1148,24 @@ class _OptimisticExpectation {
     this.expectedStatusId,
     this.expectedColorId,
     this.expectedBrightnessId,
+    this.expectedLightingStateName,
     required this.createdAt,
   });
 
   /// Returns `true` if [item] from the server matches this expectation.
   bool matches(LightZoneItem item) {
     if (expectedStatusId != null) {
-      final expectedStatus = expectedStatusId == 1 ? 'OFF' : 'SOLID_COLOR';
+      String expectedStatus;
+      switch (expectedStatusId) {
+        case 1:
+          expectedStatus = 'OFF';
+          break;
+        case 4:
+          expectedStatus = 'EFFECT';
+          break;
+        default:
+          expectedStatus = 'SOLID_COLOR';
+      }
       if (item.lightingStatus != expectedStatus) {
         return false;
       }

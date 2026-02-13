@@ -1418,6 +1418,30 @@ class _EffectsTabContentState extends State<EffectsTabContent>
       'EffectsTab: Executing effect $effectId on $targetType $targetId',
     );
 
+    // ── Optimistic update ──
+    // Push the effect state into the local data so the lights tab
+    // reflects the change immediately (same pattern as color selection).
+    final effectConfig = effect['configuration'] as String?;
+
+    if (widget.isAllLightsMode) {
+      LocationDataService().optimisticSetEffectAll(
+        effectId: effectId,
+        effectConfig: effectConfig,
+      );
+    } else if (widget.lightId != null) {
+      LocationDataService().optimisticSetEffect(
+        lightId: widget.lightId!,
+        effectId: effectId,
+        effectConfig: effectConfig,
+      );
+    } else if (widget.zoneId != null) {
+      LocationDataService().optimisticSetEffect(
+        lightId: widget.zoneId!,
+        effectId: effectId,
+        effectConfig: effectConfig,
+      );
+    }
+
     CommandService()
         .executeEffect(
           id: targetId,

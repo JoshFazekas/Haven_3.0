@@ -1766,8 +1766,8 @@ class CascadePreviewPainter extends CustomPainter {
     // Normalize ribbon size: 0.25ft -> 0, 100ft -> 1
     final normalizedRibbonSize = (ribbonSize - 0.25) / (100.0 - 0.25);
     
-    // Min width: 4px (thin but visible), Max width: screen width / 5
-    final minWidth = 4.0;
+    // Min width: 20px (wide enough to see on small cards), Max width: screen width / 5
+    final minWidth = 20.0;
     final maxWidth = size.width / 5;
     final segmentWidth = minWidth + (normalizedRibbonSize * (maxWidth - minWidth));
 
@@ -1775,7 +1775,7 @@ class CascadePreviewPainter extends CustomPainter {
     double gapWidth = 0.0;
     if (backgroundColor != null) {
       final normalizedBackgroundSize = (backgroundSize - 0.25) / (100.0 - 0.25);
-      final minGapWidth = 2.0;
+      final minGapWidth = 10.0;
       final maxGapWidth = size.width / 6;
       gapWidth = minGapWidth + (normalizedBackgroundSize * (maxGapWidth - minGapWidth));
     }
